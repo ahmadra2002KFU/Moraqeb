@@ -507,19 +507,6 @@ async function runSweepCycle() {
     // 6. Push to all connected browsers
     broadcast({ type: 'update', data: currentData });
 
-    // 7. Generate SITREP blog (non-blocking)
-    if (config.geminiApiKey) {
-      generateSITREP(config.geminiApiKey, currentData, delta).then(sitrep => {
-        if (sitrep) {
-          blogStore.save(sitrep);
-          broadcast({ type: 'blog_update', timestamp: sitrep.timestamp });
-          console.log(`[Moraqeb] SITREP generated (EN + AR)`);
-        }
-      }).catch(err => {
-        console.error('[Moraqeb] SITREP generation failed (non-fatal):', err.message);
-      });
-    }
-
     console.log(`[Moraqeb] Sweep complete — ${currentData.meta.sourcesOk}/${currentData.meta.sourcesQueried} sources OK`);
     console.log(`[Moraqeb] ${currentData.ideas.length} ideas (${synthesized.ideasSource}) | ${currentData.news.length} news | ${currentData.newsFeed.length} feed items`);
     if (delta?.summary) console.log(`[Moraqeb] Delta: ${delta.summary.totalChanges} changes, ${delta.summary.criticalChanges} critical, direction: ${delta.summary.direction}`);
@@ -530,6 +517,44 @@ async function runSweepCycle() {
     broadcast({ type: 'sweep_error', error: err.message });
   } finally {
     sweepInProgress = false;
+  }
+}
+
+// === Blog Cycle (decoupled from sweep) ===
+let blogInProgress = false;
+let lastBlogTime = null;
+
+async function runBlogCycle() {
+  if (blogInProgress) {
+    console.log('[Moraqeb Blog] Generation already in progress, skipping');
+    return;
+  }
+  if (!config.geminiApiKey) {
+    console.log('[Moraqeb Blog] No Gemini API key — skipping');
+    return;
+  }
+  if (!currentData) {
+    console.log('[Moraqeb Blog] No sweep data yet — skipping');
+    return;
+  }
+
+  blogInProgress = true;
+  console.log(`[Moraqeb Blog] Starting blog generation cycle...`);
+
+  try {
+    const delta = memory.getLastDelta();
+    const previousSitrep = blogStore.getLatest();
+    const sitrep = await generateSITREP(config.geminiApiKey, currentData, delta, previousSitrep);
+    if (sitrep) {
+      blogStore.save(sitrep);
+      broadcast({ type: 'blog_update', timestamp: sitrep.timestamp });
+      lastBlogTime = new Date().toISOString();
+      console.log(`[Moraqeb Blog] SITREP generated (EN + AR) with summaries`);
+    }
+  } catch (err) {
+    console.error('[Moraqeb Blog] Generation failed:', err.message);
+  } finally {
+    blogInProgress = false;
   }
 }
 
@@ -550,7 +575,7 @@ async function start() {
   ║  Discord:    ${config.discord?.botToken ? 'enabled' : config.discord?.webhookUrl ? 'webhook only' : 'disabled'}${' '.repeat(config.discord?.botToken ? 24 : config.discord?.webhookUrl ? 20 : 23)}║
   ║  Chat:       /chat                          ║
   ║  Voice:      /voice                         ║
-  ║  Blog:       /blog                          ║
+  ║  Blog:       /blog (every ${config.blogIntervalMinutes} min)${' '.repeat(14 - String(config.blogIntervalMinutes).length)}║
   ╚══════════════════════════════════════════════╝
   `);
 
@@ -680,6 +705,17 @@ async function start() {
 
     // Schedule recurring sweeps
     setInterval(runSweepCycle, config.refreshIntervalMinutes * 60 * 1000);
+
+    // Schedule blog generation (decoupled from sweep)
+    if (config.geminiApiKey) {
+      // First blog after initial sweep finishes (2-minute delay)
+      setTimeout(() => {
+        runBlogCycle().catch(err => console.error('[Moraqeb Blog] Initial blog failed:', err.message));
+      }, 2 * 60 * 1000);
+      // Then every blogIntervalMinutes
+      setInterval(runBlogCycle, config.blogIntervalMinutes * 60 * 1000);
+      console.log(`[Moraqeb Blog] Scheduled every ${config.blogIntervalMinutes} min`);
+    }
   });
 }
 

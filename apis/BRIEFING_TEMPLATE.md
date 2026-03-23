@@ -1,11 +1,11 @@
-# Crucix Briefing Template
+# Moraqeb Briefing Template
 
-Use this output shape for every intelligence briefing.
+Use this output shape for every intelligence briefing. Start each section with a **bold one-line takeaway**.
 
 ## 1. Leverageable Ideas
 
 ### Idea 1
-- Thesis:
+- **Thesis:**
 - Exposure:
 - Why now:
 - Time horizon:
@@ -14,7 +14,7 @@ Use this output shape for every intelligence briefing.
 - Confidence:
 
 ### Idea 2
-- Thesis:
+- **Thesis:**
 - Exposure:
 - Why now:
 - Time horizon:
@@ -23,7 +23,7 @@ Use this output shape for every intelligence briefing.
 - Confidence:
 
 ### Idea 3
-- Thesis:
+- **Thesis:**
 - Exposure:
 - Why now:
 - Time horizon:
@@ -31,11 +31,15 @@ Use this output shape for every intelligence briefing.
 - Invalidation:
 - Confidence:
 
+---
+
 ## 2. Executive Thesis
 
-- Regime forming:
+- **Regime forming:**
 - What matters most:
-- Main implication for the user:
+- Main implication:
+
+---
 
 ## 3. Situation Awareness
 
@@ -57,6 +61,8 @@ Use this output shape for every intelligence briefing.
 - Why it matters:
 - What changes:
 
+---
+
 ## 4. Pattern Recognition
 
 ### Pattern 1
@@ -71,18 +77,18 @@ Use this output shape for every intelligence briefing.
 - Direction:
 - Invalidation:
 
-## 5. Historical Parallels
-
-### Parallel 1
+### Historical Parallels
 - Analog:
 - What matches:
 - What is different:
 - What happened next:
 - Current position in sequence:
 
-## 6. Market and Asset Implications
+---
 
-- Equities:
+## 5. Market and Asset Implications
+
+- **Equities:**
 - Bonds and rates:
 - Commodities:
 - Gold and silver:
@@ -90,16 +96,17 @@ Use this output shape for every intelligence briefing.
 - Crypto:
 - Sector and country effects:
 
-## 7. Decision Board
+---
 
-- Best long:
+## 6. Decision Board
+
+- **Best long:**
 - Best hedge:
 - Best watchlist item:
 - Biggest unresolved question:
 - Monitor in the next 24-72 hours:
 
-## 8. Source Integrity
-
+### Source Notes
 - Strong sources this run:
 - Weak or degraded sources:
 - Hard-data core:

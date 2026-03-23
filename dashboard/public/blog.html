@@ -12,174 +12,181 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&family=Space+Grotesk:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <style>
-/* ─── Reset & Variables ───────────────────────────────────────── */
+/* ---- Reset & Variables ------------------------------------------------- */
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 
 :root{
-  --bg:#0a0f14;
-  --bg-surface:#111820;
-  --bg-elevated:#182028;
-  --text:#e0e8e4;
-  --text-secondary:#8a9a94;
-  --text-muted:#5a6a64;
-  --accent:#64f0c8;
-  --accent-dim:rgba(100,240,200,0.12);
-  --accent-border:rgba(100,240,200,0.2);
-  --border:rgba(255,255,255,0.08);
-  --border-strong:rgba(255,255,255,0.14);
-  --danger:#ff5f63;
-  --warn:#ffb84c;
-  --mono:'IBM Plex Mono',monospace;
-  --sans:'Space Grotesk',sans-serif;
-  --max-w:800px;
-  --section-accent:#64f0c8;
+  --bg:#0a0f14;--bg-surface:#111820;--bg-elevated:#182028;
+  --text:#e0e8e4;--text-secondary:#8a9a94;--text-muted:#5a6a64;
+  --accent:#64f0c8;--accent-dim:rgba(100,240,200,0.12);--accent-border:rgba(100,240,200,0.2);
+  --border:rgba(255,255,255,0.08);--border-strong:rgba(255,255,255,0.14);
+  --danger:#ff5f63;--warn:#ffb84c;
+  --mono:'IBM Plex Mono',monospace;--sans:'Space Grotesk',sans-serif;
+  --max-w:1200px;--section-accent:#64f0c8;
 }
 
 html.light{
-  --bg:#f8f9fa;
-  --bg-surface:#ffffff;
-  --bg-elevated:#f0f2f5;
-  --text:#1a1a2e;
-  --text-secondary:#4a5568;
-  --text-muted:#718096;
-  --accent:#0d7a5f;
-  --accent-dim:rgba(13,122,95,0.08);
-  --accent-border:rgba(13,122,95,0.25);
-  --border:rgba(0,0,0,0.08);
-  --border-strong:rgba(0,0,0,0.14);
+  --bg:#f8f9fa;--bg-surface:#ffffff;--bg-elevated:#f0f2f5;
+  --text:#1a1a2e;--text-secondary:#4a5568;--text-muted:#718096;
+  --accent:#0d7a5f;--accent-dim:rgba(13,122,95,0.08);--accent-border:rgba(13,122,95,0.25);
+  --border:rgba(0,0,0,0.08);--border-strong:rgba(0,0,0,0.14);
   --section-accent:#0d7a5f;
 }
 
 html,body{
-  min-height:100vh;
-  background:var(--bg);
-  color:var(--text);
-  font-family:var(--sans);
-  line-height:1.6;
-  transition:background 0.3s ease, color 0.3s ease;
+  min-height:100vh;background:var(--bg);color:var(--text);
+  font-family:var(--sans);line-height:1.6;
+  transition:background .3s ease,color .3s ease;
 }
-
 a{color:var(--accent);text-decoration:none}
 a:hover{text-decoration:underline}
 
-/* ─── Header ──────────────────────────────────────────────────── */
+/* ---- Header ------------------------------------------------------------ */
 .site-header{
   position:sticky;top:0;z-index:100;
-  background:var(--bg-surface);
-  border-bottom:1px solid var(--border);
-  backdrop-filter:blur(16px);
-  -webkit-backdrop-filter:blur(16px);
+  background:var(--bg-surface);border-bottom:1px solid var(--border);
+  backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);
 }
 .header-inner{
-  max-width:1200px;margin:0 auto;
+  max-width:var(--max-w);margin:0 auto;
   display:flex;align-items:center;justify-content:space-between;
   padding:14px 24px;gap:16px;flex-wrap:wrap;
 }
 .header-brand{
   font-family:var(--mono);font-weight:700;font-size:13px;
-  letter-spacing:0.14em;text-transform:uppercase;
+  letter-spacing:.14em;text-transform:uppercase;
   color:var(--accent);white-space:nowrap;
 }
-.header-nav{
-  display:flex;align-items:center;gap:6px;flex-wrap:wrap;
-}
+.header-nav{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
 .header-nav a{
   font-family:var(--mono);font-size:11px;font-weight:500;
-  letter-spacing:0.08em;text-transform:uppercase;
+  letter-spacing:.08em;text-transform:uppercase;
   padding:6px 14px;border:1px solid transparent;
-  color:var(--text-secondary);transition:all 0.2s;
-  text-decoration:none;
+  color:var(--text-secondary);transition:all .2s;text-decoration:none;
 }
 .header-nav a:hover{color:var(--text);border-color:var(--border-strong)}
-.header-nav a.active{
-  color:var(--accent);border-color:var(--accent-border);
-  background:var(--accent-dim);
-}
-.header-controls{
-  display:flex;align-items:center;gap:8px;
-}
-.lang-toggle{
-  display:flex;border:1px solid var(--border-strong);overflow:hidden;
-}
+.header-nav a.active{color:var(--accent);border-color:var(--accent-border);background:var(--accent-dim)}
+.header-controls{display:flex;align-items:center;gap:8px}
+.lang-toggle{display:flex;border:1px solid var(--border-strong);overflow:hidden}
 .lang-btn{
   font-family:var(--mono);font-size:11px;font-weight:600;
-  letter-spacing:0.06em;padding:5px 12px;
+  letter-spacing:.06em;padding:5px 12px;
   background:transparent;color:var(--text-secondary);
-  border:none;cursor:pointer;transition:all 0.2s;
+  border:none;cursor:pointer;transition:all .2s;
 }
-.lang-btn.active{
-  background:var(--accent);color:#020408;
-}
-html.light .lang-btn.active{
-  background:var(--accent);color:#fff;
-}
+.lang-btn.active{background:var(--accent);color:#020408}
+html.light .lang-btn.active{background:var(--accent);color:#fff}
 .theme-btn{
   width:34px;height:34px;border:1px solid var(--border-strong);
   background:transparent;color:var(--text-secondary);
   cursor:pointer;font-size:16px;display:flex;
-  align-items:center;justify-content:center;
-  transition:all 0.2s;border-radius:0;
+  align-items:center;justify-content:center;transition:all .2s;border-radius:0;
 }
 .theme-btn:hover{color:var(--accent);border-color:var(--accent-border)}
 
-/* ─── Layout ──────────────────────────────────────────────────── */
+/* ---- Page Layout (2-col grid) ------------------------------------------ */
 .page-layout{
-  max-width:1200px;margin:0 auto;padding:32px 24px 60px;
-  display:grid;grid-template-columns:1fr 280px;gap:40px;
+  max-width:var(--max-w);margin:0 auto;padding:32px 24px 60px;
+  display:grid;grid-template-columns:1fr 260px;gap:40px;
 }
 
-/* ─── Main Content ────────────────────────────────────────────── */
+/* ---- Main Content ------------------------------------------------------ */
 .main-content{min-width:0}
 
 .sitrep-meta{
-  display:flex;align-items:center;gap:12px;flex-wrap:wrap;
-  margin-bottom:24px;
+  display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:24px;
 }
-.meta-timestamp{
-  font-family:var(--mono);font-size:12px;color:var(--text-muted);
-  letter-spacing:0.04em;
+.meta-badge{
+  font-family:var(--mono);font-size:11px;letter-spacing:.04em;
+  padding:3px 10px;border:1px solid var(--border);
 }
+.meta-timestamp{color:var(--text-muted);font-family:var(--mono);font-size:12px;letter-spacing:.04em}
 .meta-countdown{
-  font-family:var(--mono);font-size:11px;color:var(--accent);
-  letter-spacing:0.04em;padding:3px 10px;
-  border:1px solid var(--accent-border);background:var(--accent-dim);
+  font-family:var(--mono);font-size:11px;color:var(--accent);letter-spacing:.04em;
+  padding:3px 10px;border:1px solid var(--accent-border);background:var(--accent-dim);
+}
+.meta-reading{
+  font-family:var(--mono);font-size:11px;color:var(--text-secondary);letter-spacing:.04em;
+  padding:3px 10px;border:1px solid var(--border);
 }
 .meta-sources{
-  font-family:var(--mono);font-size:11px;color:var(--text-secondary);
-  letter-spacing:0.04em;padding:3px 10px;
-  border:1px solid var(--border);
+  font-family:var(--mono);font-size:11px;color:var(--text-secondary);letter-spacing:.04em;
+  padding:3px 10px;border:1px solid var(--border);
 }
 
-.sitrep-title{
-  font-size:28px;font-weight:700;line-height:1.25;
-  margin-bottom:8px;letter-spacing:-0.01em;
+.sitrep-title{font-size:28px;font-weight:700;line-height:1.25;margin-bottom:8px;letter-spacing:-.01em}
+.sitrep-divider{width:60px;height:3px;background:var(--accent);margin:20px 0 28px;opacity:.7}
+
+/* ---- Executive Summary Card -------------------------------------------- */
+.exec-summary{
+  background:var(--accent-dim);border:1px solid var(--accent-border);
+  padding:28px 32px;margin-bottom:32px;font-size:17px;line-height:1.8;
+}
+.exec-summary p{margin:0 0 14px;unicode-bidi:plaintext;text-align:start}
+.exec-summary p:last-child{margin-bottom:0}
+.exec-summary-label{
+  font-family:var(--mono);font-size:10px;font-weight:600;
+  letter-spacing:.14em;text-transform:uppercase;
+  color:var(--accent);margin-bottom:14px;
 }
 
-.sitrep-divider{
-  width:60px;height:3px;background:var(--accent);
-  margin:20px 0 28px;opacity:0.7;
+/* ---- Full Analysis Toggle ---------------------------------------------- */
+.analysis-toggle{
+  display:flex;align-items:center;gap:16px;
+  margin:28px 0;cursor:pointer;user-select:none;
+}
+.analysis-toggle::before,.analysis-toggle::after{
+  content:'';flex:1;height:1px;background:var(--border-strong);
+}
+.analysis-toggle-label{
+  font-family:var(--mono);font-size:12px;font-weight:600;
+  letter-spacing:.08em;text-transform:uppercase;
+  color:var(--accent);white-space:nowrap;transition:color .2s;
+}
+.analysis-toggle:hover .analysis-toggle-label{color:var(--text)}
+
+/* ---- Collapsible SITREP Sections --------------------------------------- */
+#sitrepSections{overflow:hidden}
+#sitrepSections.hidden{display:none}
+
+.sitrep-section{border:1px solid var(--border);margin-bottom:-1px}
+.sitrep-section:nth-child(even){background:var(--bg-surface)}
+.sitrep-section:nth-child(odd){background:transparent}
+.sitrep-section summary{
+  display:flex;align-items:center;gap:14px;
+  padding:16px 20px;cursor:pointer;list-style:none;
+  font-weight:600;font-size:16px;transition:background .2s;
+}
+.sitrep-section summary::-webkit-details-marker{display:none}
+.sitrep-section summary::marker{display:none;content:''}
+.sitrep-section summary:hover{background:var(--accent-dim)}
+.sitrep-section[open] summary{border-bottom:1px solid var(--border)}
+.section-badge{
+  font-family:var(--mono);font-size:12px;font-weight:700;
+  color:var(--accent);min-width:28px;text-align:center;
+  letter-spacing:.04em;
+}
+.section-title-text{flex:1;unicode-bidi:plaintext;text-align:start}
+.section-chevron{
+  font-family:var(--mono);font-size:14px;color:var(--text-muted);
+  transition:transform .2s;
+}
+.sitrep-section[open] .section-chevron{transform:rotate(90deg)}
+.section-content{
+  padding:20px 20px 20px 62px;font-size:16px;line-height:1.7;color:var(--text);
 }
 
-/* ─── Article Rendered Markdown ───────────────────────────────── */
-.sitrep-body{
-  font-size:16px;line-height:1.7;color:var(--text);
-}
-.sitrep-body h1{
-  font-size:26px;font-weight:700;margin:32px 0 12px;line-height:1.3;
-}
+/* ---- Article Rendered Markdown ----------------------------------------- */
+.sitrep-body h1{font-size:26px;font-weight:700;margin:32px 0 12px;line-height:1.3}
 .sitrep-body h2{
   font-size:20px;font-weight:600;margin:36px 0 14px;
   padding-inline-start:14px;line-height:1.35;
   border-inline-start:3px solid var(--section-accent);
 }
-.sitrep-body h3{
-  font-size:17px;font-weight:600;margin:24px 0 10px;
-  color:var(--accent);line-height:1.35;
-}
+.sitrep-body h3{font-size:17px;font-weight:600;margin:24px 0 10px;color:var(--accent);line-height:1.35}
 .sitrep-body h4{
   font-size:15px;font-weight:600;margin:20px 0 8px;
-  text-transform:uppercase;letter-spacing:0.04em;
-  color:var(--text-secondary);
+  text-transform:uppercase;letter-spacing:.04em;color:var(--text-secondary);
 }
 .sitrep-body p{margin:0 0 14px}
 .sitrep-body strong{font-weight:600;color:var(--text)}
@@ -187,142 +194,154 @@ html.light .lang-btn.active{
 .sitrep-body ul,.sitrep-body ol{margin:0 0 14px;padding-left:0;padding-right:0;padding-inline-start:24px}
 .sitrep-body li{margin-bottom:6px}
 .sitrep-body li::marker{color:var(--accent)}
-
 .sitrep-body code{
-  font-family:var(--mono);font-size:0.88em;
+  font-family:var(--mono);font-size:.88em;
   padding:2px 6px;background:var(--bg-elevated);
   border:1px solid var(--border);color:var(--accent);
+}
+.sitrep-body pre{
+  margin:16px 0;padding:16px 20px;background:var(--bg-elevated);
+  border:1px solid var(--border);overflow-x:auto;
+}
+.sitrep-body pre code{
+  padding:0;border:none;background:none;
+  font-size:13px;line-height:1.6;color:var(--text-secondary);
+  display:block;white-space:pre;
 }
 .sitrep-body blockquote{
   margin:16px 0;padding:12px 20px;padding-inline-start:20px;
   border-inline-start:3px solid var(--accent-border);
-  background:var(--accent-dim);color:var(--text-secondary);
-  font-style:italic;
+  background:var(--accent-dim);color:var(--text-secondary);font-style:italic;
 }
-.sitrep-body hr{
-  border:none;height:1px;background:var(--border-strong);margin:28px 0;
-}
-.sitrep-body table{
-  width:100%;border-collapse:collapse;margin:16px 0;
-  font-size:14px;
-}
+.sitrep-body hr{border:none;height:1px;background:var(--border-strong);margin:28px 0}
+.sitrep-body img{max-width:100%;height:auto;margin:16px 0;border:1px solid var(--border)}
+.sitrep-body table{width:100%;border-collapse:collapse;margin:16px 0;font-size:14px}
 .sitrep-body th{
   font-family:var(--mono);font-size:11px;font-weight:600;
-  letter-spacing:0.06em;text-transform:uppercase;
+  letter-spacing:.06em;text-transform:uppercase;
   padding:10px 12px;text-align:start;
   border-bottom:2px solid var(--accent-border);
   color:var(--accent);background:var(--accent-dim);
 }
-.sitrep-body td{
-  padding:8px 12px;border-bottom:1px solid var(--border);
-  color:var(--text-secondary);
-}
+.sitrep-body td{padding:8px 12px;border-bottom:1px solid var(--border);color:var(--text-secondary)}
 .sitrep-body tr:hover td{background:var(--accent-dim)}
 
-/* ─── Empty/Loading States ────────────────────────────────────── */
+/* ---- Empty / Loading States -------------------------------------------- */
 .state-card{
   text-align:center;padding:80px 24px;
-  border:1px dashed var(--border-strong);
-  background:var(--bg-surface);margin-top:12px;
+  border:1px dashed var(--border-strong);background:var(--bg-surface);margin-top:12px;
 }
-.state-card .icon{font-size:48px;margin-bottom:16px;opacity:0.4}
+.state-card .icon{font-size:48px;margin-bottom:16px;opacity:.4}
 .state-card h2{font-size:18px;font-weight:600;margin-bottom:8px}
 .state-card p{font-size:14px;color:var(--text-muted);max-width:380px;margin:0 auto}
-
 .loading-pulse{
   display:inline-block;width:12px;height:12px;
   border:2px solid var(--accent);border-top-color:transparent;
-  border-radius:50%;animation:spin 0.8s linear infinite;
+  border-radius:50%;animation:spin .8s linear infinite;
   vertical-align:middle;margin-right:8px;
 }
 @keyframes spin{to{transform:rotate(360deg)}}
 
-/* ─── Sidebar / Archive ───────────────────────────────────────── */
+/* ---- Sidebar ----------------------------------------------------------- */
 .sidebar{min-width:0}
-.sidebar-header{
+
+.toc-container{position:sticky;top:80px;margin-bottom:32px}
+.toc-header,.sidebar-archive-header{
   font-family:var(--mono);font-size:10px;font-weight:600;
-  letter-spacing:0.14em;text-transform:uppercase;
+  letter-spacing:.14em;text-transform:uppercase;
   color:var(--text-muted);margin-bottom:14px;
   padding-bottom:10px;border-bottom:1px solid var(--border);
 }
+.toc-list{display:flex;flex-direction:column;gap:2px;margin-bottom:28px}
+.toc-item{
+  display:flex;align-items:center;gap:10px;
+  padding:8px 12px;cursor:pointer;transition:all .2s;
+  font-size:13px;font-weight:500;color:var(--text-secondary);
+}
+.toc-item:hover{color:var(--text);background:var(--accent-dim)}
+.toc-item-num{
+  font-family:var(--mono);font-size:11px;font-weight:700;
+  color:var(--accent);min-width:22px;
+}
+.toc-item-label{flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.toc-divider{height:1px;background:var(--border);margin:16px 0}
+
 .archive-list{display:flex;flex-direction:column;gap:6px}
 .archive-item{
   padding:12px 14px;border:1px solid var(--border);
-  background:var(--bg-surface);cursor:pointer;
-  transition:all 0.2s;
+  background:var(--bg-surface);cursor:pointer;transition:all .2s;
 }
-.archive-item:hover{
-  border-color:var(--accent-border);background:var(--accent-dim);
-}
-.archive-item.active{
-  border-color:var(--accent);background:var(--accent-dim);
-}
+.archive-item:hover{border-color:var(--accent-border);background:var(--accent-dim)}
+.archive-item.active{border-color:var(--accent);background:var(--accent-dim)}
 .archive-item-time{
   font-family:var(--mono);font-size:10px;color:var(--text-muted);
-  letter-spacing:0.04em;margin-bottom:4px;
+  letter-spacing:.04em;margin-bottom:4px;
 }
 .archive-item-title{
-  font-size:13px;font-weight:500;line-height:1.35;
-  color:var(--text-secondary);
-  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;
-  overflow:hidden;
+  font-size:13px;font-weight:500;line-height:1.35;color:var(--text-secondary);
+  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;
 }
 .archive-item:hover .archive-item-title,
 .archive-item.active .archive-item-title{color:var(--text)}
 
-/* ─── Footer ──────────────────────────────────────────────────── */
+/* ---- Footer ------------------------------------------------------------ */
 .site-footer{
   border-top:1px solid var(--border);padding:20px 24px;
   text-align:center;font-family:var(--mono);font-size:11px;
-  color:var(--text-muted);letter-spacing:0.04em;line-height:1.6;
+  color:var(--text-muted);letter-spacing:.04em;line-height:1.6;
 }
 
-/* ─── BiDi & RTL Support ──────────────────────────────────────── */
-/* unicode-bidi:plaintext lets each line auto-detect its direction,
-   so Arabic lines flow RTL while embedded English/numbers stay LTR */
+/* ---- BiDi & RTL Support ------------------------------------------------ */
 .sitrep-body,
-.sitrep-body p,
-.sitrep-body li,
-.sitrep-body td,
-.sitrep-body th,
-.sitrep-body h1,
-.sitrep-body h2,
-.sitrep-body h3,
-.sitrep-body h4,
+.sitrep-body p,.sitrep-body li,.sitrep-body td,.sitrep-body th,
+.sitrep-body h1,.sitrep-body h2,.sitrep-body h3,.sitrep-body h4,
 .sitrep-body blockquote,
-.sitrep-title,
-.archive-item-title{
-  unicode-bidi:plaintext;
-  text-align:start;
+.sitrep-title,.archive-item-title,.section-content,
+.section-content p,.section-content li,.section-content td,.section-content th,
+.section-content h1,.section-content h2,.section-content h3,.section-content h4,
+.section-content blockquote{
+  unicode-bidi:plaintext;text-align:start;
 }
 .sitrep-divider{margin-inline-end:auto}
 
 html[dir="rtl"]{font-family:'Space Grotesk','Segoe UI',Tahoma,sans-serif}
-html[dir="rtl"] .sitrep-body{line-height:1.9;font-size:17px}
+html[dir="rtl"] .sitrep-body,
+html[dir="rtl"] .section-content{line-height:1.9;font-size:17px}
 html[dir="rtl"] .sitrep-title{letter-spacing:0;line-height:1.4}
-html[dir="rtl"] .header-brand{letter-spacing:0.06em}
+html[dir="rtl"] .header-brand{letter-spacing:.06em}
 html[dir="rtl"] .sitrep-meta{direction:rtl}
 html[dir="rtl"] .meta-timestamp,
 html[dir="rtl"] .meta-countdown,
+html[dir="rtl"] .meta-reading,
 html[dir="rtl"] .meta-sources{unicode-bidi:plaintext}
 html[dir="rtl"] .header-inner{direction:rtl}
 html[dir="rtl"] .header-nav{direction:ltr}
 html[dir="rtl"] .header-controls{direction:ltr}
 html[dir="rtl"] .archive-item-title{text-align:right}
-html[dir="rtl"] .sidebar-header{text-align:right}
+html[dir="rtl"] .sidebar-archive-header,
+html[dir="rtl"] .toc-header{text-align:right}
 html[dir="rtl"] .site-footer{direction:rtl;unicode-bidi:plaintext}
-html[dir="rtl"] .sitrep-body code{direction:ltr;unicode-bidi:isolate}
+html[dir="rtl"] .sitrep-body code,
+html[dir="rtl"] .section-content code{direction:ltr;unicode-bidi:isolate}
+html[dir="rtl"] .sitrep-body pre,
+html[dir="rtl"] .section-content pre{direction:ltr;unicode-bidi:isolate}
+html[dir="rtl"] .section-content{padding:20px 62px 20px 20px}
+html[dir="rtl"] .exec-summary{font-size:18px;line-height:1.9}
+html[dir="rtl"] .toc-item{direction:rtl}
 
-/* ─── Responsive ──────────────────────────────────────────────── */
+/* ---- Responsive -------------------------------------------------------- */
 @media(max-width:900px){
-  .page-layout{
-    grid-template-columns:1fr;gap:32px;
-  }
+  .page-layout{grid-template-columns:1fr;gap:32px}
   .header-inner{padding:12px 16px}
   .page-layout{padding:24px 16px 48px}
   .sitrep-title{font-size:22px}
-  .sitrep-body{font-size:15px}
-  .sitrep-body h2{font-size:18px}
+  .sitrep-body,.section-content{font-size:15px}
+  .sitrep-body h2,.section-content h2{font-size:18px}
+  .toc-container{display:none}
+  .toc-divider{display:none}
+  .exec-summary{padding:20px 18px;font-size:15px}
+  .section-content{padding:16px 16px 16px 46px}
+  html[dir="rtl"] .section-content{padding:16px 46px 16px 16px}
 }
 @media(max-width:600px){
   .header-nav{display:none}
@@ -375,42 +394,60 @@ html[dir="rtl"] .sitrep-body code{direction:ltr;unicode-bidi:isolate}
       <div class="sitrep-meta">
         <span class="meta-timestamp" id="sitrepTimestamp"></span>
         <span class="meta-countdown" id="sitrepCountdown"></span>
+        <span class="meta-reading" id="sitrepReading"></span>
         <span class="meta-sources" id="sitrepSources">27+ OSINT sources</span>
       </div>
       <h1 class="sitrep-title" id="sitrepTitle"></h1>
       <div class="sitrep-divider"></div>
-      <div class="sitrep-body" id="sitrepBody"></div>
+
+      <!-- Executive Summary -->
+      <div class="exec-summary" id="execSummary">
+        <div class="exec-summary-label">Executive Summary</div>
+        <div id="execSummaryBody"></div>
+      </div>
+
+      <!-- Full Analysis Toggle -->
+      <div class="analysis-toggle" id="analysisToggle" onclick="toggleFullAnalysis()">
+        <span class="analysis-toggle-label" id="analysisToggleLabel">&#9660; Read Full Analysis</span>
+      </div>
+
+      <!-- Collapsible Sections -->
+      <div id="sitrepSections" class="hidden"></div>
     </article>
   </main>
 
-  <!-- Sidebar: Archive -->
+  <!-- Sidebar: TOC + Archive -->
   <aside class="sidebar">
-    <div class="sidebar-header">Previous Briefings</div>
-    <div class="archive-list" id="archiveList">
-      <!-- Populated dynamically -->
+    <div class="toc-container" id="tocContainer">
+      <div class="toc-header">Table of Contents</div>
+      <div class="toc-list" id="tocList"></div>
+      <div class="toc-divider"></div>
     </div>
+    <div class="sidebar-archive-header">Previous Briefings</div>
+    <div class="archive-list" id="archiveList"></div>
   </aside>
 </div>
 
 <!-- Footer -->
 <footer class="site-footer">
-  Powered by Moraqeb (&rlm;&#1605;&#1585;&#1575;&#1602;&#1576;&lrm;) &mdash; Auto-generated every 15 minutes from 27+ OSINT sources
+  Powered by Moraqeb (&rlm;&#1605;&#1585;&#1575;&#1602;&#1576;&lrm;) &mdash; Updated hourly from 27+ OSINT sources
 </footer>
 
 <script>
-/* ═══════════════════════════════════════════════════════════════
+/* ===========================================================================
    Moraqeb SITREP Blog — Client-Side Logic
-   ═══════════════════════════════════════════════════════════════ */
+   =========================================================================== */
 
-// ─── State ───────────────────────────────────────────────────
-let currentLang = 'en';
-let currentSitrep = null;
-let archiveData = [];
-let countdownInterval = null;
+// ---- State ----------------------------------------------------------------
+var currentLang = 'en';
+var currentSitrep = null;
+var archiveData = [];
+var countdownInterval = null;
+var analysisExpanded = false;
 
-// ─── Theme ───────────────────────────────────────────────────
+// ---- Theme ----------------------------------------------------------------
 function toggleTheme() {
-  const isLight = document.documentElement.classList.toggle('light');
+  var isLight = document.documentElement.classList.toggle('light');
   localStorage.setItem('moraqeb-blog-theme', isLight ? 'light' : 'dark');
   updateThemeIcon(isLight);
 }
@@ -421,24 +458,20 @@ function updateThemeIcon(isLight) {
 }
 
 function initTheme() {
-  const saved = localStorage.getItem('moraqeb-blog-theme');
+  var saved = localStorage.getItem('moraqeb-blog-theme');
   if (saved === 'light') {
     document.documentElement.classList.add('light');
     updateThemeIcon(true);
   }
 }
 
-// ─── Language ────────────────────────────────────────────────
+// ---- Language -------------------------------------------------------------
 function setLang(lang) {
   currentLang = lang;
   localStorage.setItem('moraqeb-blog-lang', lang);
-
-  // Update toggle buttons
-  document.querySelectorAll('.lang-btn').forEach(btn => {
+  document.querySelectorAll('.lang-btn').forEach(function(btn) {
     btn.classList.toggle('active', btn.dataset.lang === lang);
   });
-
-  // RTL handling
   if (lang === 'ar') {
     document.documentElement.setAttribute('dir', 'rtl');
     document.documentElement.setAttribute('lang', 'ar');
@@ -446,57 +479,53 @@ function setLang(lang) {
     document.documentElement.removeAttribute('dir');
     document.documentElement.setAttribute('lang', 'en');
   }
-
-  // Re-render current SITREP in the new language
-  if (currentSitrep) {
-    renderSitrep(currentSitrep);
-  }
+  if (currentSitrep) renderSitrep(currentSitrep);
   renderArchive();
 }
 
 function initLang() {
-  const saved = localStorage.getItem('moraqeb-blog-lang');
+  var saved = localStorage.getItem('moraqeb-blog-lang');
   if (saved === 'ar') setLang('ar');
 }
 
-// ─── Lightweight Markdown to HTML ────────────────────────────
+// ---- Lightweight Markdown to HTML -----------------------------------------
 function mdToHtml(md) {
   if (!md) return '';
+  var html = md.replace(/\r\n/g, '\n');
 
-  let html = md;
+  // Extract fenced code blocks before escaping
+  var codeBlocks = [];
+  html = html.replace(/```(\w*)\n([\s\S]*?)```/g, function(_, lang, code) {
+    var idx = codeBlocks.length;
+    codeBlocks.push({ lang: lang, code: code });
+    return '\x00CODEBLOCK' + idx + '\x00';
+  });
 
-  // Normalize line endings
-  html = html.replace(/\r\n/g, '\n');
-
-  // Escape HTML entities (but preserve markdown syntax)
+  // Escape HTML entities
   html = html.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
-  // Tables — process before other block elements
+  // Tables
   html = html.replace(/^(\|.+\|)\n(\|[-:\s|]+\|)\n((?:\|.+\|\n?)*)/gm, function(match, headerRow, sepRow, bodyRows) {
-    const parseRow = row => row.replace(/^\||\|$/g, '').split('|').map(c => c.trim());
-    const headers = parseRow(headerRow);
-
-    // Parse alignment from separator row
-    const aligns = parseRow(sepRow).map(s => {
+    var parseRow = function(row) { return row.replace(/^\||\|$/g, '').split('|').map(function(c) { return c.trim(); }); };
+    var headers = parseRow(headerRow);
+    var aligns = parseRow(sepRow).map(function(s) {
       if (/^:-+:$/.test(s)) return 'center';
       if (/^-+:$/.test(s)) return 'right';
       return 'left';
     });
-
-    let table = '<table><thead><tr>';
-    headers.forEach((h, i) => {
-      const align = aligns[i] ? ` style="text-align:${aligns[i]}"` : '';
-      table += `<th${align}>${h}</th>`;
+    var table = '<table><thead><tr>';
+    headers.forEach(function(h, i) {
+      var align = aligns[i] ? ' style="text-align:' + aligns[i] + '"' : '';
+      table += '<th' + align + '>' + h + '</th>';
     });
     table += '</tr></thead><tbody>';
-
-    const rows = bodyRows.trim().split('\n').filter(r => r.trim());
-    rows.forEach(row => {
-      const cells = parseRow(row);
+    var rows = bodyRows.trim().split('\n').filter(function(r) { return r.trim(); });
+    rows.forEach(function(row) {
+      var cells = parseRow(row);
       table += '<tr>';
-      cells.forEach((c, i) => {
-        const align = aligns[i] ? ` style="text-align:${aligns[i]}"` : '';
-        table += `<td${align}>${c}</td>`;
+      cells.forEach(function(c, i) {
+        var align = aligns[i] ? ' style="text-align:' + aligns[i] + '"' : '';
+        table += '<td' + align + '>' + c + '</td>';
       });
       table += '</tr>';
     });
@@ -504,7 +533,7 @@ function mdToHtml(md) {
     return table;
   });
 
-  // Headings (must come before bold processing to avoid conflict with ** in headings)
+  // Headings
   html = html.replace(/^#### (.+)$/gm, '<h4 dir="auto">$1</h4>');
   html = html.replace(/^### (.+)$/gm, '<h3 dir="auto">$1</h3>');
   html = html.replace(/^## (.+)$/gm, '<h2 dir="auto">$1</h2>');
@@ -515,61 +544,150 @@ function mdToHtml(md) {
 
   // Blockquotes
   html = html.replace(/^&gt; (.+)$/gm, '<blockquote>$1</blockquote>');
-  // Merge consecutive blockquotes
   html = html.replace(/<\/blockquote>\n<blockquote>/g, '\n');
 
   // Bold + Italic
   html = html.replace(/\*\*\*(.+?)\*\*\*/g, '<strong><em>$1</em></strong>');
-  // Bold
   html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
-  // Italic
   html = html.replace(/\*(.+?)\*/g, '<em>$1</em>');
+
+  // Images: ![alt](url)
+  html = html.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, '<img src="$2" alt="$1" loading="lazy">');
+
+  // Links: [text](url)
+  html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
 
   // Inline code
   html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
 
-  // Unordered lists — process blocks of consecutive list items
+  // Unordered lists
   html = html.replace(/((?:^[\t ]*[-*+] .+\n?)+)/gm, function(block) {
-    const items = block.trim().split('\n').map(line =>
-      '<li dir="auto">' + line.replace(/^[\t ]*[-*+] /, '') + '</li>'
-    ).join('');
+    var items = block.trim().split('\n').map(function(line) {
+      return '<li dir="auto">' + line.replace(/^[\t ]*[-*+] /, '') + '</li>';
+    }).join('');
     return '<ul>' + items + '</ul>\n';
   });
 
   // Ordered lists
   html = html.replace(/((?:^[\t ]*\d+\. .+\n?)+)/gm, function(block) {
-    const items = block.trim().split('\n').map(line =>
-      '<li dir="auto">' + line.replace(/^[\t ]*\d+\. /, '') + '</li>'
-    ).join('');
+    var items = block.trim().split('\n').map(function(line) {
+      return '<li dir="auto">' + line.replace(/^[\t ]*\d+\. /, '') + '</li>';
+    }).join('');
     return '<ol>' + items + '</ol>\n';
   });
 
-  // Paragraphs: wrap remaining text blocks
-  // Split by double newlines, wrap non-block content in <p>
-  const blocks = html.split(/\n{2,}/);
-  html = blocks.map(block => {
+  // Paragraphs
+  var blocks = html.split(/\n{2,}/);
+  html = blocks.map(function(block) {
     block = block.trim();
     if (!block) return '';
-    // Don't wrap block-level elements
-    if (/^<(h[1-6]|ul|ol|li|table|thead|tbody|tr|th|td|blockquote|hr|p|div)[\s>]/i.test(block)) {
-      return block;
-    }
+    if (/^<(h[1-6]|ul|ol|li|table|thead|tbody|tr|th|td|blockquote|hr|p|div|pre|img)[\s>]/i.test(block)) return block;
+    if (/^\x00CODEBLOCK\d+\x00$/.test(block)) return block;
     return '<p dir="auto">' + block.replace(/\n/g, '<br>') + '</p>';
   }).join('\n');
+
+  // Restore fenced code blocks
+  html = html.replace(/\x00CODEBLOCK(\d+)\x00/g, function(_, idx) {
+    var cb = codeBlocks[parseInt(idx)];
+    var escaped = cb.code.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    var langAttr = cb.lang ? ' data-lang="' + cb.lang + '"' : '';
+    return '<pre><code' + langAttr + '>' + escaped + '</code></pre>';
+  });
 
   return html;
 }
 
-// ─── Render SITREP ───────────────────────────────────────────
+// ---- Parse Sections from Markdown -----------------------------------------
+function parseSections(content) {
+  content = content.replace(/^#\s+.+\n?/, '');
+  var parts = content.split(/(?=^## )/m);
+  return parts.filter(function(p) { return p.trim(); }).map(function(part, idx) {
+    var match = part.match(/^##\s+(.+)\n([\s\S]*)/);
+    if (match) return { title: match[1].trim(), body: match[2].trim(), index: idx };
+    return { title: '', body: part.trim(), index: idx };
+  }).filter(function(s) { return s.body; });
+}
+
+// ---- Render Sections as <details> -----------------------------------------
+function renderSections(sections) {
+  var isMobile = window.innerWidth <= 900;
+  return sections.map(function(sec, i) {
+    var badge = String(i + 1).padStart(2, '0');
+    var openAttr = (!isMobile && i < 2) ? ' open' : '';
+    var bodyHtml = mdToHtml(sec.body);
+    return '<details class="sitrep-section" id="section-' + i + '"' + openAttr + '>' +
+      '<summary>' +
+        '<span class="section-badge">' + badge + '</span>' +
+        '<span class="section-title-text">' + escapeHtml(sec.title) + '</span>' +
+        '<span class="section-chevron">&#9656;</span>' +
+      '</summary>' +
+      '<div class="section-content sitrep-body">' + bodyHtml + '</div>' +
+    '</details>';
+  }).join('');
+}
+
+// ---- Render TOC -----------------------------------------------------------
+function renderTOC(sections) {
+  var tocList = document.getElementById('tocList');
+  var tocContainer = document.getElementById('tocContainer');
+  if (!sections || sections.length === 0) {
+    tocContainer.style.display = 'none';
+    return;
+  }
+  tocContainer.style.display = '';
+  tocList.innerHTML = sections.map(function(sec, i) {
+    var badge = String(i + 1).padStart(2, '0');
+    return '<div class="toc-item" onclick="scrollToSection(' + i + ')">' +
+      '<span class="toc-item-num">' + badge + '</span>' +
+      '<span class="toc-item-label">' + escapeHtml(sec.title) + '</span>' +
+    '</div>';
+  }).join('');
+}
+
+// ---- Toggle Full Analysis -------------------------------------------------
+function toggleFullAnalysis() {
+  var container = document.getElementById('sitrepSections');
+  var label = document.getElementById('analysisToggleLabel');
+  analysisExpanded = !analysisExpanded;
+  if (analysisExpanded) {
+    container.classList.remove('hidden');
+    label.innerHTML = '&#9650; Hide Full Analysis';
+  } else {
+    container.classList.add('hidden');
+    label.innerHTML = '&#9660; Read Full Analysis';
+  }
+}
+
+// ---- Scroll to Section ----------------------------------------------------
+function scrollToSection(idx) {
+  // Ensure full analysis is visible
+  if (!analysisExpanded) toggleFullAnalysis();
+  var el = document.getElementById('section-' + idx);
+  if (!el) return;
+  el.open = true;
+  setTimeout(function() {
+    el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, 50);
+}
+
+// ---- Calculate Reading Time -----------------------------------------------
+function calcReadingTime(text) {
+  if (!text) return 0;
+  var words = text.trim().split(/\s+/).length;
+  return Math.max(1, Math.ceil(words / 200));
+}
+
+// ---- Render SITREP --------------------------------------------------------
 function renderSitrep(sitrep) {
-  const article = document.getElementById('sitrepArticle');
-  const loading = document.getElementById('loadingState');
-  const empty = document.getElementById('emptyState');
+  var article = document.getElementById('sitrepArticle');
+  var loading = document.getElementById('loadingState');
+  var empty = document.getElementById('emptyState');
 
   if (!sitrep) {
     article.style.display = 'none';
     loading.style.display = 'none';
     empty.style.display = '';
+    renderTOC([]);
     return;
   }
 
@@ -577,47 +695,76 @@ function renderSitrep(sitrep) {
   empty.style.display = 'none';
   article.style.display = '';
 
-  const data = currentLang === 'ar' ? sitrep.ar : sitrep.en;
+  var data = currentLang === 'ar' ? sitrep.ar : sitrep.en;
   if (!data) return;
 
   // Title
   document.getElementById('sitrepTitle').textContent = data.title || 'Intelligence Briefing';
 
   // Timestamp
-  const ts = sitrep.timestamp ? new Date(sitrep.timestamp) : new Date();
-  const timeStr = ts.toLocaleString('en-US', {
+  var ts = sitrep.timestamp ? new Date(sitrep.timestamp) : new Date();
+  var timeStr = ts.toLocaleString('en-US', {
     weekday: 'short', year: 'numeric', month: 'short', day: 'numeric',
     hour: '2-digit', minute: '2-digit', timeZoneName: 'short'
   });
   document.getElementById('sitrepTimestamp').textContent = timeStr;
 
-  // Content — render markdown to HTML, skip the first heading if it matches title
-  let content = data.content || '';
-  // Remove the first heading line if it matches the title (avoid duplication)
-  const firstHeadingMatch = content.match(/^#\s+.+\n?/);
-  if (firstHeadingMatch) {
-    content = content.substring(firstHeadingMatch[0].length);
+  // Reading time
+  var fullText = (data.summary || '') + ' ' + (data.content || '');
+  var readMin = calcReadingTime(fullText);
+  document.getElementById('sitrepReading').textContent = readMin + ' min read';
+
+  // Executive summary
+  var summaryEl = document.getElementById('execSummaryBody');
+  if (data.summary) {
+    var paragraphs = data.summary.split(/\n\n+/);
+    summaryEl.innerHTML = paragraphs.map(function(p) {
+      return '<p dir="auto">' + escapeHtml(p.trim()).replace(/\n/g, '<br>') + '</p>';
+    }).join('');
+    document.getElementById('execSummary').style.display = '';
+  } else {
+    document.getElementById('execSummary').style.display = 'none';
   }
-  document.getElementById('sitrepBody').innerHTML = mdToHtml(content);
+
+  // Parse sections from full content
+  var content = data.content || '';
+  var sections = parseSections(content);
+
+  // Render collapsible sections
+  var sectionsContainer = document.getElementById('sitrepSections');
+  if (sections.length > 0) {
+    sectionsContainer.innerHTML = renderSections(sections);
+    document.getElementById('analysisToggle').style.display = '';
+    // Reset toggle state
+    analysisExpanded = false;
+    sectionsContainer.classList.add('hidden');
+    document.getElementById('analysisToggleLabel').innerHTML = '&#9660; Read Full Analysis';
+  } else {
+    sectionsContainer.innerHTML = '';
+    document.getElementById('analysisToggle').style.display = 'none';
+  }
+
+  // Build TOC
+  renderTOC(sections);
 
   // Start countdown
   startCountdown(ts);
 }
 
-// ─── Countdown ───────────────────────────────────────────────
+// ---- Countdown (60-minute cycle) ------------------------------------------
 function startCountdown(lastUpdate) {
   if (countdownInterval) clearInterval(countdownInterval);
-  const el = document.getElementById('sitrepCountdown');
+  var el = document.getElementById('sitrepCountdown');
 
   function tick() {
-    const nextUpdate = new Date(lastUpdate.getTime() + 15 * 60 * 1000);
-    const diff = nextUpdate - Date.now();
+    var nextUpdate = new Date(lastUpdate.getTime() + 60 * 60 * 1000);
+    var diff = nextUpdate - Date.now();
     if (diff <= 0) {
       el.textContent = 'Update expected soon...';
       return;
     }
-    const mins = Math.floor(diff / 60000);
-    const secs = Math.floor((diff % 60000) / 1000);
+    var mins = Math.floor(diff / 60000);
+    var secs = Math.floor((diff % 60000) / 1000);
     el.textContent = 'Next update in ' + mins + 'm ' + secs + 's';
   }
 
@@ -625,26 +772,24 @@ function startCountdown(lastUpdate) {
   countdownInterval = setInterval(tick, 1000);
 }
 
-// ─── Archive ─────────────────────────────────────────────────
+// ---- Archive --------------------------------------------------------------
 function renderArchive() {
-  const list = document.getElementById('archiveList');
-
+  var list = document.getElementById('archiveList');
   if (!archiveData.length) {
     list.innerHTML = '<div style="font-size:12px;color:var(--text-muted);padding:8px 0">No previous briefings yet.</div>';
     return;
   }
-
-  list.innerHTML = archiveData.map((item, idx) => {
-    const ts = new Date(item.timestamp);
-    const timeStr = ts.toLocaleString('en-US', {
-      month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
-    });
-    const title = currentLang === 'ar' ? (item.ar?.title || '') : (item.en?.title || '');
-    const isActive = currentSitrep && currentSitrep.timestamp === item.timestamp;
-    return `<div class="archive-item${isActive ? ' active' : ''}" onclick="loadArchive('${item.filename || item.timestamp}', ${idx})">
-      <div class="archive-item-time">${timeStr}</div>
-      <div class="archive-item-title">${escapeHtml(title)}</div>
-    </div>`;
+  list.innerHTML = archiveData.map(function(item, idx) {
+    var ts = new Date(item.timestamp);
+    var timeStr = ts.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+    var title = currentLang === 'ar'
+      ? (item.ar ? item.ar.title || '' : '')
+      : (item.en ? item.en.title || '' : '');
+    var isActive = currentSitrep && currentSitrep.timestamp === item.timestamp;
+    return '<div class="archive-item' + (isActive ? ' active' : '') + '" onclick="loadArchive(\'' + (item.filename || item.timestamp) + '\',' + idx + ')">' +
+      '<div class="archive-item-time">' + timeStr + '</div>' +
+      '<div class="archive-item-title">' + escapeHtml(title) + '</div>' +
+    '</div>';
   }).join('');
 }
 
@@ -655,30 +800,29 @@ function escapeHtml(str) {
 
 async function loadArchive(identifier, idx) {
   try {
-    const res = await fetch('/api/blog/archive/' + encodeURIComponent(identifier));
+    var res = await fetch('/api/blog/archive/' + encodeURIComponent(identifier));
     if (!res.ok) throw new Error('Not found');
-    const sitrep = await res.json();
+    var sitrep = await res.json();
     currentSitrep = sitrep;
     renderSitrep(sitrep);
-    renderArchive(); // update active state
+    renderArchive();
     window.scrollTo({ top: 0, behavior: 'smooth' });
   } catch (err) {
     console.error('Failed to load archived SITREP:', err);
   }
 }
 
-// ─── Data Fetching ───────────────────────────────────────────
+// ---- Data Fetching --------------------------------------------------------
 async function fetchLatest() {
   try {
-    const res = await fetch('/api/blog');
+    var res = await fetch('/api/blog');
     if (res.status === 404 || res.status === 204) {
-      // No sitrep yet
       currentSitrep = null;
       renderSitrep(null);
       return;
     }
     if (!res.ok) throw new Error('HTTP ' + res.status);
-    const sitrep = await res.json();
+    var sitrep = await res.json();
     if (sitrep && sitrep.timestamp) {
       currentSitrep = sitrep;
       renderSitrep(sitrep);
@@ -688,7 +832,6 @@ async function fetchLatest() {
     }
   } catch (err) {
     console.error('Failed to fetch latest SITREP:', err);
-    // On first load failure, show empty state
     if (!currentSitrep) {
       document.getElementById('loadingState').style.display = 'none';
       document.getElementById('emptyState').style.display = '';
@@ -698,7 +841,7 @@ async function fetchLatest() {
 
 async function fetchArchive() {
   try {
-    const res = await fetch('/api/blog/archive');
+    var res = await fetch('/api/blog/archive');
     if (!res.ok) return;
     archiveData = await res.json();
     renderArchive();
@@ -707,34 +850,29 @@ async function fetchArchive() {
   }
 }
 
-// ─── SSE / Polling ───────────────────────────────────────────
+// ---- SSE / Polling --------------------------------------------------------
 function connectSSE() {
-  let evtSrc;
+  var evtSrc;
   try {
     evtSrc = new EventSource('/events');
-  } catch {
-    // Fallback to polling
+  } catch (e) {
     setInterval(refreshAll, 60000);
     return;
   }
 
   evtSrc.onmessage = function(event) {
     try {
-      const data = JSON.parse(event.data);
-      if (data.type === 'blog_update') {
-        // A new SITREP was published — refresh
-        refreshAll();
-      }
-    } catch { /* ignore parse errors */ }
+      var data = JSON.parse(event.data);
+      if (data.type === 'blog_update') refreshAll();
+    } catch (e) { /* ignore */ }
   };
 
   evtSrc.onerror = function() {
-    // SSE connection lost — fall back to polling
     evtSrc.close();
-    setTimeout(connectSSE, 10000); // Reconnect after 10s
+    setTimeout(connectSSE, 10000);
   };
 
-  // Also poll as a safety net (every 60 seconds)
+  // Safety-net polling every 60 seconds
   setInterval(refreshAll, 60000);
 }
 
@@ -743,7 +881,7 @@ function refreshAll() {
   fetchArchive();
 }
 
-// ─── Init ────────────────────────────────────────────────────
+// ---- Init -----------------------------------------------------------------
 (function init() {
   initTheme();
   initLang();
