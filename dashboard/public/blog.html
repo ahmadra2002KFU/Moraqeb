@@ -245,7 +245,7 @@ html.light .lang-btn.active{background:var(--accent);color:#fff}
 /* ---- Sidebar ----------------------------------------------------------- */
 .sidebar{min-width:0}
 
-.toc-container{position:sticky;top:80px;margin-bottom:32px}
+.toc-container{margin-bottom:32px}
 .toc-header,.sidebar-archive-header{
   font-family:var(--mono);font-size:10px;font-weight:600;
   letter-spacing:.14em;text-transform:uppercase;
@@ -735,10 +735,14 @@ function renderSitrep(sitrep) {
   if (sections.length > 0) {
     sectionsContainer.innerHTML = renderSections(sections);
     document.getElementById('analysisToggle').style.display = '';
-    // Reset toggle state
-    analysisExpanded = false;
-    sectionsContainer.classList.add('hidden');
-    document.getElementById('analysisToggleLabel').innerHTML = '&#9660; Read Full Analysis';
+    // Preserve expanded state across re-renders (language toggle, archive load)
+    if (analysisExpanded) {
+      sectionsContainer.classList.remove('hidden');
+      document.getElementById('analysisToggleLabel').innerHTML = '&#9650; Hide Full Analysis';
+    } else {
+      sectionsContainer.classList.add('hidden');
+      document.getElementById('analysisToggleLabel').innerHTML = '&#9660; Read Full Analysis';
+    }
   } else {
     sectionsContainer.innerHTML = '';
     document.getElementById('analysisToggle').style.display = 'none';
