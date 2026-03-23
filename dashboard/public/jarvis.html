@@ -4,6 +4,10 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>MORAQEB — Intelligence Terminal</title>
+<link rel="icon" type="image/x-icon" href="/favicon.ico">
+<link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="/favicon-16.png">
+<link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500;600;700&family=Space+Grotesk:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
@@ -324,7 +328,7 @@ body.low-perf .ticker-wrap::-webkit-scrollbar-thumb{background:rgba(100,240,200,
 </head>
 <body>
 <div id="boot">
-  <div class="logo-ring"><span class="logo-text">MORAQEB</span></div>
+  <div class="logo-ring"><img src="/logo-header.png" alt="Moraqeb" style="height:50px"></div>
   <div id="bootLines"></div>
   <div id="bootFinal">TERMINAL ACTIVE</div>
 </div>
@@ -586,7 +590,7 @@ function renderTopbar(){
   const timeStr = ts.toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit',hour12:true});
   document.getElementById('topbar').innerHTML=`
     <div class="top-left">
-      <span class="brand">MORAQEB</span>
+      <span class="brand"><img src="/logo-header.png" alt="Moraqeb" style="height:24px;vertical-align:middle"></span>
       <a href="/chat" class="guide-btn" style="text-decoration:none;font-size:10px">CHAT</a>
       <a href="/voice" class="guide-btn" style="text-decoration:none;font-size:10px">VOICE</a>
       <a href="/blog" class="guide-btn" style="text-decoration:none;font-size:10px">BLOG</a>
