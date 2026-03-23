@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>CRUCIX — Intelligence Terminal</title>
+<title>MORAQEB — Intelligence Terminal</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500;600;700&family=Space+Grotesk:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
@@ -238,7 +238,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 .tk-src.anz{color:#80cbc4;border-color:rgba(128,203,196,0.3)}
 .tk-src.us{color:#90caf9;border-color:rgba(144,202,249,0.3)}
 .tk-src.other{color:#b0bec5;border-color:rgba(176,190,197,0.2)}
-.tk-head{font-size:11px;line-height:1.35;color:#c8d8d2;margin-top:3px}
+.tk-head{font-size:11px;line-height:1.35;color:#c8d8d2;margin-top:3px;unicode-bidi:plaintext;text-align:start}
 .tk-time{font-family:var(--mono);font-size:8px;color:var(--dim);margin-top:2px}
 
 /* DELTA BADGES */
@@ -324,7 +324,7 @@ body.low-perf .ticker-wrap::-webkit-scrollbar-thumb{background:rgba(100,240,200,
 </head>
 <body>
 <div id="boot">
-  <div class="logo-ring"><span class="logo-text">CRUCIX</span></div>
+  <div class="logo-ring"><span class="logo-text">MORAQEB</span></div>
   <div id="bootLines"></div>
   <div id="bootFinal">TERMINAL ACTIVE</div>
 </div>
@@ -586,7 +586,10 @@ function renderTopbar(){
   const timeStr = ts.toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit',hour12:true});
   document.getElementById('topbar').innerHTML=`
     <div class="top-left">
-      <span class="brand">CRUCIX MONITOR</span>
+      <span class="brand">MORAQEB</span>
+      <a href="/chat" class="guide-btn" style="text-decoration:none;font-size:10px">CHAT</a>
+      <a href="/voice" class="guide-btn" style="text-decoration:none;font-size:10px">VOICE</a>
+      <a href="/blog" class="guide-btn" style="text-decoration:none;font-size:10px">BLOG</a>
       <span class="regime-chip"><span class="blink"></span>WARTIME STAGFLATION RISK</span>
     </div>
     ${mobile ? `<div class="top-center">${getRegionControlsMarkup()}</div>` : ''}
@@ -1545,7 +1548,7 @@ function safeExternalUrl(raw){try{const u=new URL(raw,location.href);return u.pr
 function runBoot(){
   const acledStatus = D.acled?.totalEvents > 0 ? `<span class="ok">${D.acled.totalEvents} EVENTS</span>` : '<span style="color:var(--warn)">DEGRADED</span>';
   const lines=[
-    {text:t('boot.initializing','INITIALIZING CRUCIX ENGINE v2.1.0'),delay:0},
+    {text:t('boot.initializing','INITIALIZING MORAQEB ENGINE v1.0.0'),delay:0},
     {text:t('boot.connecting','CONNECTING {count} OSINT SOURCES...').replace('{count}',D.meta.sourcesQueried),delay:400},
     {text:'&#9500;&#9472; '+t('boot.sourceGroup1','OPENSKY · FIRMS · KIWISDR · MARITIME'),delay:700},
     {text:'&#9500;&#9472; '+t('boot.sourceGroup2','FRED · BLS · EIA · TREASURY · GSCPI'),delay:900},

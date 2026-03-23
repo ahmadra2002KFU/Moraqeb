@@ -1,6 +1,7 @@
 services:
-  crucix:
+  moraqeb:
     build: .
+    container_name: moraqeb
     ports:
       - "${PORT:-3117}:${PORT:-3117}"
     env_file:

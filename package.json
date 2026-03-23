@@ -1,7 +1,7 @@
 {
-  "name": "crucix",
-  "version": "2.0.0",
-  "description": "Local intelligence engine - 27 OSINT sources, live dashboard, public demo at crucix.live, auto-refresh, optional LLM layer.",
+  "name": "moraqeb",
+  "version": "1.0.0",
+  "description": "Moraqeb (مراقب) — The Observer. AI-powered OSINT intelligence engine with 27 sources, live dashboard, conversational AI, voice assistant, and auto-generated SITREP blog.",
   "type": "module",
   "scripts": {
     "start": "node server.mjs",
@@ -20,14 +20,15 @@
     "dashboard",
     "geopolitical"
   ],
-  "author": "Crucix",
+  "author": "Moraqeb",
   "license": "AGPL-3.0-only",
   "engines": {
     "node": ">=22",
     "npm": ">=10"
   },
   "dependencies": {
-    "express": "^5.1.0"
+    "express": "^5.1.0",
+    "ws": "^8.18.0"
   },
   "optionalDependencies": {
     "discord.js": "^14.25.1"  },

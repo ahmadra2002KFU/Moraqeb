@@ -1,4 +1,4 @@
-// Crucix Configuration — all settings with env var overrides
+// Moraqeb (مراقب) Configuration — all settings with env var overrides
 
 import "./apis/utils/env.mjs"; // Load .env first
 
@@ -26,6 +26,9 @@ export default {
     guildId: process.env.DISCORD_GUILD_ID || null, // Server ID (for instant slash command registration)
     webhookUrl: process.env.DISCORD_WEBHOOK_URL || null, // Fallback: webhook-only alerts (no bot needed)
   },
+
+  // Gemini API key (for chat, voice, blog)
+  geminiApiKey: process.env.GEMINI_API_KEY || process.env.LLM_API_KEY || null,
 
   // Delta engine thresholds — override defaults from lib/delta/engine.mjs
   // Set to null to use built-in defaults
