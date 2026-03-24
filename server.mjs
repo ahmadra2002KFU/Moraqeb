@@ -338,6 +338,7 @@ app.post('/api/chat', async (req, res) => {
         systemInstruction: { parts: [{ text: systemPrompt }] },
         contents,
         generationConfig: { maxOutputTokens: 8192 },
+        tools: [{ googleSearch: {} }],
       }),
       signal: AbortSignal.timeout(120000),
     });
