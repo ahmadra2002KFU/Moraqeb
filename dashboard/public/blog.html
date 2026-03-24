@@ -430,7 +430,8 @@ html[dir="rtl"] .toc-item{direction:rtl}
 
 <!-- Footer -->
 <footer class="site-footer">
-  Powered by Moraqeb (&rlm;&#1605;&#1585;&#1575;&#1602;&#1576;&lrm;) &mdash; Updated hourly from 27+ OSINT sources
+  <div>Powered by Moraqeb (&rlm;&#1605;&#1585;&#1575;&#1602;&#1576;&lrm;) &mdash; Updated hourly from 27+ OSINT sources</div>
+  <div style="margin-top:8px;opacity:0.7">This content is entirely AI-generated based on publicly available open-source data. It does not constitute verified intelligence, financial advice, or official reporting. Analysis reflects automated interpretation and may contain errors. Always verify critical information through official sources.</div>
 </footer>
 
 <script>
@@ -601,11 +602,11 @@ function mdToHtml(md) {
 function parseSections(content) {
   content = content.replace(/^#\s+.+\n?/, '');
   var parts = content.split(/(?=^## )/m);
-  return parts.filter(function(p) { return p.trim(); }).map(function(part, idx) {
+  return parts.filter(function(p) { return p.trim(); }).map(function(part) {
     var match = part.match(/^##\s+(.+)\n([\s\S]*)/);
-    if (match) return { title: match[1].trim(), body: match[2].trim(), index: idx };
-    return { title: '', body: part.trim(), index: idx };
-  }).filter(function(s) { return s.body; });
+    if (match) return { title: match[1].trim(), body: match[2].trim() };
+    return null; // skip preamble content before first ## heading
+  }).filter(function(s) { return s && s.body; });
 }
 
 // ---- Render Sections as <details> -----------------------------------------
@@ -821,17 +822,17 @@ async function fetchLatest() {
   try {
     var res = await fetch('/api/blog');
     if (res.status === 404 || res.status === 204) {
-      currentSitrep = null;
-      renderSitrep(null);
+      if (currentSitrep) { currentSitrep = null; renderSitrep(null); }
       return;
     }
     if (!res.ok) throw new Error('HTTP ' + res.status);
     var sitrep = await res.json();
     if (sitrep && sitrep.timestamp) {
+      // Only re-render if the SITREP actually changed (avoid collapsing user-opened sections)
+      if (currentSitrep && currentSitrep.timestamp === sitrep.timestamp) return;
       currentSitrep = sitrep;
       renderSitrep(sitrep);
-    } else {
-      currentSitrep = null;
+    } else if (!currentSitrep) {
       renderSitrep(null);
     }
   } catch (err) {

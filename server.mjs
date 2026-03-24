@@ -23,6 +23,7 @@ import { getChatSystemPrompt, getVoiceSystemPrompt } from './lib/prompts/strateg
 import { GeminiLiveSession } from './lib/llm/gemini-live.mjs';
 import { generateSITREP } from './lib/blog/generator.mjs';
 import { BlogStore } from './lib/blog/store.mjs';
+import { TokenTracker } from './lib/token-tracker.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = __dirname;
@@ -36,8 +37,9 @@ for (const dir of [RUNS_DIR, MEMORY_DIR, join(MEMORY_DIR, 'cold'), BLOG_DIR]) {
   if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
 }
 
-// === Blog Store ===
+// === Blog Store + Token Tracker ===
 const blogStore = new BlogStore(BLOG_DIR);
+const tokenTracker = new TokenTracker(RUNS_DIR);
 
 // === State ===
 let currentData = null;    // Current synthesized dashboard data
@@ -356,6 +358,7 @@ app.post('/api/chat', async (req, res) => {
     const reader = geminiRes.body.getReader();
     const decoder = new TextDecoder();
     let buffer = '';
+    let chatInputTokens = 0, chatOutputTokens = 0;
 
     while (true) {
       const { done, value } = await reader.read();
@@ -375,9 +378,19 @@ app.post('/api/chat', async (req, res) => {
             if (text) {
               res.write(`data: ${JSON.stringify({ text })}\n\n`);
             }
+            // Capture token usage from the last chunk
+            if (parsed.usageMetadata) {
+              chatInputTokens = parsed.usageMetadata.promptTokenCount || chatInputTokens;
+              chatOutputTokens = parsed.usageMetadata.candidatesTokenCount || chatOutputTokens;
+            }
           } catch { /* skip malformed chunks */ }
         }
       }
+    }
+
+    // Record chat token usage
+    if (chatInputTokens || chatOutputTokens) {
+      tokenTracker.record('chat', chatInputTokens, chatOutputTokens);
     }
 
     res.write('data: [DONE]\n\n');
@@ -409,6 +422,11 @@ app.get('/api/blog/archive/:timestamp', (req, res) => {
   const sitrep = blogStore.getByTimestamp(req.params.timestamp);
   if (!sitrep) return res.status(404).json({ error: 'SITREP not found' });
   res.json(sitrep);
+});
+
+// === Token Usage API ===
+app.get('/api/usage', (req, res) => {
+  res.json(tokenTracker.getSummary('gemini-3-flash-preview'));
 });
 
 // SSE: live updates
@@ -470,6 +488,7 @@ async function runSweepCycle() {
         if (llmIdeas) {
           synthesized.ideas = llmIdeas;
           synthesized.ideasSource = 'llm';
+          if (llmIdeas._usage) tokenTracker.record('ideas', llmIdeas._usage.inputTokens, llmIdeas._usage.outputTokens);
           console.log(`[Moraqeb] LLM generated ${llmIdeas.length} ideas`);
         } else {
           synthesized.ideas = [];
@@ -544,11 +563,15 @@ async function runBlogCycle() {
   try {
     const delta = memory.getLastDelta();
     const previousSitrep = blogStore.getLatest();
-    const sitrep = await generateSITREP(config.geminiApiKey, currentData, delta, previousSitrep);
-    if (sitrep) {
+    const result = await generateSITREP(config.geminiApiKey, currentData, delta, previousSitrep);
+    if (result) {
+      const { sitrep, tokenUsage } = result;
       blogStore.save(sitrep);
       broadcast({ type: 'blog_update', timestamp: sitrep.timestamp });
       lastBlogTime = new Date().toISOString();
+      // Record token usage
+      if (tokenUsage?.blog) tokenTracker.record('blog', tokenUsage.blog.inputTokens, tokenUsage.blog.outputTokens);
+      if (tokenUsage?.blogSummary) tokenTracker.record('blogSummary', tokenUsage.blogSummary.inputTokens, tokenUsage.blogSummary.outputTokens);
       console.log(`[Moraqeb Blog] SITREP generated (EN + AR) with summaries`);
     }
   } catch (err) {
@@ -604,6 +627,7 @@ async function start() {
     }
 
     console.log('[Moraqeb Voice] Client connected');
+    tokenTracker.recordVoiceSession();
 
     // Build voice context
     const delta = memory.getLastDelta();
