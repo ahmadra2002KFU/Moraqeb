@@ -4,6 +4,7 @@
 
 import express from 'express';
 import { createServer } from 'http';
+import { createHash } from 'crypto';
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'fs';
 import { dirname, join } from 'path';
 import { fileURLToPath } from 'url';
@@ -651,6 +652,7 @@ async function runBlogCycle() {
 // === Post Cycle (every 15 minutes) ===
 let postInProgress = false;
 let lastPostTime = null;
+let lastPostDataHash = null;
 
 async function runPostCycle() {
   if (postInProgress) {
@@ -666,20 +668,38 @@ async function runPostCycle() {
     return;
   }
 
+  // Skip if sweep data hasn't changed since last post
+  const dataHash = createHash('md5').update(JSON.stringify(currentData)).digest('hex').substring(0, 16);
+  if (dataHash === lastPostDataHash) {
+    console.log('[Moraqeb Post] Sweep data unchanged since last post — skipping');
+    return;
+  }
+
   postInProgress = true;
   console.log('[Moraqeb Post] Starting post generation...');
 
   try {
     const delta = memory.getLastDelta();
     const recentTopics = postStore.getRecentTopics(24);
-    const result = await generatePost(config.minimaxApiKey, config.minimaxModel, currentData, delta, recentTopics);
-    if (result) {
+    const dedupCheck = (enContent) => postStore.checkDuplicate(enContent);
+    const result = await generatePost(config.minimaxApiKey, config.minimaxModel, currentData, delta, recentTopics, dedupCheck);
+    if (result?.skipped) {
+      console.log(`[Moraqeb Post] Skipped — ${result.reason}`);
+      lastPostDataHash = dataHash; // Mark data as consumed even on skip
+    } else if (result) {
       const { post, tokenUsage } = result;
-      postStore.save(post);
-      broadcast({ type: 'post_update', timestamp: post.timestamp });
-      lastPostTime = new Date().toISOString();
-      if (tokenUsage?.post) tokenTracker.record('post', tokenUsage.post.inputTokens, tokenUsage.post.outputTokens);
-      console.log(`[Moraqeb Post] Post generated (EN + AR)`);
+      // Don't save posts where both languages failed
+      const bothFailed = post.en.title === 'Update Unavailable' && post.ar.title === 'التحديث غير متوفر';
+      if (bothFailed) {
+        console.log('[Moraqeb Post] Both EN + AR failed — not saving fallback post');
+      } else {
+        postStore.save(post);
+        broadcast({ type: 'post_update', timestamp: post.timestamp });
+        lastPostTime = new Date().toISOString();
+        lastPostDataHash = dataHash;
+        if (tokenUsage?.post) tokenTracker.record('post', tokenUsage.post.inputTokens, tokenUsage.post.outputTokens);
+        console.log(`[Moraqeb Post] Post generated (EN + AR)`);
+      }
     }
   } catch (err) {
     console.error('[Moraqeb Post] Generation failed:', err.message);
