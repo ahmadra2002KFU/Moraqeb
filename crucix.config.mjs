@@ -28,8 +28,12 @@ export default {
     webhookUrl: process.env.DISCORD_WEBHOOK_URL || null, // Fallback: webhook-only alerts (no bot needed)
   },
 
-  // Gemini API key (for chat, voice, blog)
-  geminiApiKey: process.env.GEMINI_API_KEY || process.env.LLM_API_KEY || null,
+  // MiniMax API key (for chat and blog)
+  minimaxApiKey: process.env.MINIMAX_API_KEY || (process.env.LLM_PROVIDER === 'minimax' ? process.env.LLM_API_KEY : null) || null,
+  minimaxModel: process.env.MINIMAX_MODEL || 'MiniMax-M2.7',
+
+  // Gemini API key (voice only)
+  geminiApiKey: process.env.GEMINI_API_KEY || null,
 
   // Delta engine thresholds — override defaults from lib/delta/engine.mjs
   // Set to null to use built-in defaults

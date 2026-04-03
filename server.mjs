@@ -23,6 +23,8 @@ import { getChatSystemPrompt, getVoiceSystemPrompt } from './lib/prompts/strateg
 import { GeminiLiveSession } from './lib/llm/gemini-live.mjs';
 import { generateSITREP } from './lib/blog/generator.mjs';
 import { BlogStore } from './lib/blog/store.mjs';
+import { generatePost } from './lib/posts/generator.mjs';
+import { PostStore } from './lib/posts/store.mjs';
 import { TokenTracker } from './lib/token-tracker.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -31,14 +33,16 @@ const RUNS_DIR = join(ROOT, 'runs');
 const MEMORY_DIR = join(RUNS_DIR, 'memory');
 
 const BLOG_DIR = join(RUNS_DIR, 'blog');
+const POSTS_DIR = join(RUNS_DIR, 'posts');
 
 // Ensure directories exist
-for (const dir of [RUNS_DIR, MEMORY_DIR, join(MEMORY_DIR, 'cold'), BLOG_DIR]) {
+for (const dir of [RUNS_DIR, MEMORY_DIR, join(MEMORY_DIR, 'cold'), BLOG_DIR, POSTS_DIR]) {
   if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
 }
 
 // === Blog Store + Token Tracker ===
 const blogStore = new BlogStore(BLOG_DIR);
+const postStore = new PostStore(POSTS_DIR);
 const tokenTracker = new TokenTracker(RUNS_DIR);
 
 // === State ===
@@ -302,51 +306,58 @@ app.get('/api/locales', (req, res) => {
 app.get('/chat', (req, res) => res.sendFile(join(ROOT, 'dashboard/public/chat.html')));
 app.get('/voice', (req, res) => res.sendFile(join(ROOT, 'dashboard/public/voice.html')));
 app.get('/blog', (req, res) => res.sendFile(join(ROOT, 'dashboard/public/blog.html')));
+app.get('/posts', (req, res) => res.sendFile(join(ROOT, 'dashboard/public/posts.html')));
 
-// === Chat API (Gemini 3 Flash streaming) ===
+// === Chat API (MiniMax M2.7 streaming) ===
 app.use(express.json());
 
 app.post('/api/chat', async (req, res) => {
   const { message, history } = req.body;
   if (!message) return res.status(400).json({ error: 'message is required' });
 
-  const apiKey = config.geminiApiKey;
-  if (!apiKey) return res.status(503).json({ error: 'Gemini API key not configured' });
+  const apiKey = config.minimaxApiKey;
+  if (!apiKey) return res.status(503).json({ error: 'MiniMax API key not configured' });
 
   // Build intelligence context from current sweep
   const delta = memory.getLastDelta();
   const context = buildIntelligenceContext(currentData, delta);
   const systemPrompt = getChatSystemPrompt(context);
 
-  // Build conversation contents for Gemini
-  const contents = [];
+  // Build conversation messages for MiniMax (OpenAI-compatible)
+  const messages = [{ role: 'system', content: systemPrompt }];
   if (history?.length) {
     for (const msg of history) {
-      contents.push({ role: msg.role, parts: msg.parts });
+      // Convert Gemini-style { role: "model", parts } to OpenAI-style { role: "assistant", content }
+      const role = msg.role === 'model' ? 'assistant' : msg.role;
+      const content = msg.parts?.map(p => p.text).join('') || '';
+      messages.push({ role, content });
     }
   }
-  contents.push({ role: 'user', parts: [{ text: message }] });
+  messages.push({ role: 'user', content: message });
 
-  // Stream from Gemini
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:streamGenerateContent?alt=sse&key=${apiKey}`;
+  // Stream from MiniMax
+  const minimaxUrl = 'https://api.minimax.io/v1/chat/completions';
 
   try {
-    const geminiRes = await fetch(url, {
+    const minimaxRes = await fetch(minimaxUrl, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`,
+      },
       body: JSON.stringify({
-        systemInstruction: { parts: [{ text: systemPrompt }] },
-        contents,
-        generationConfig: { maxOutputTokens: 8192 },
-        tools: [{ googleSearch: {} }],
+        model: config.minimaxModel,
+        max_tokens: 8192,
+        stream: true,
+        messages,
       }),
       signal: AbortSignal.timeout(120000),
     });
 
-    if (!geminiRes.ok) {
-      const errText = await geminiRes.text().catch(() => '');
-      console.error('[Moraqeb Chat] Gemini error:', geminiRes.status, errText.substring(0, 300));
-      return res.status(502).json({ error: `Gemini API error: ${geminiRes.status}` });
+    if (!minimaxRes.ok) {
+      const errText = await minimaxRes.text().catch(() => '');
+      console.error('[Moraqeb Chat] MiniMax error:', minimaxRes.status, errText.substring(0, 300));
+      return res.status(502).json({ error: `MiniMax API error: ${minimaxRes.status}` });
     }
 
     // Relay the SSE stream
@@ -356,7 +367,7 @@ app.post('/api/chat', async (req, res) => {
       'Connection': 'keep-alive',
     });
 
-    const reader = geminiRes.body.getReader();
+    const reader = minimaxRes.body.getReader();
     const decoder = new TextDecoder();
     let buffer = '';
     let chatInputTokens = 0, chatOutputTokens = 0;
@@ -375,14 +386,15 @@ app.post('/api/chat', async (req, res) => {
           if (!jsonStr || jsonStr === '[DONE]') continue;
           try {
             const parsed = JSON.parse(jsonStr);
-            const text = parsed.candidates?.[0]?.content?.parts?.[0]?.text || '';
+            const delta = parsed.choices?.[0]?.delta;
+            const text = delta?.content || '';
             if (text) {
               res.write(`data: ${JSON.stringify({ text })}\n\n`);
             }
             // Capture token usage from the last chunk
-            if (parsed.usageMetadata) {
-              chatInputTokens = parsed.usageMetadata.promptTokenCount || chatInputTokens;
-              chatOutputTokens = parsed.usageMetadata.candidatesTokenCount || chatOutputTokens;
+            if (parsed.usage) {
+              chatInputTokens = parsed.usage.prompt_tokens || chatInputTokens;
+              chatOutputTokens = parsed.usage.completion_tokens || chatOutputTokens;
             }
           } catch { /* skip malformed chunks */ }
         }
@@ -425,9 +437,27 @@ app.get('/api/blog/archive/:timestamp', (req, res) => {
   res.json(sitrep);
 });
 
+// === Posts API ===
+app.get('/api/posts', (req, res) => {
+  const latest = postStore.getLatest();
+  if (!latest) return res.status(404).json({ error: 'No posts generated yet' });
+  res.json(latest);
+});
+
+app.get('/api/posts/archive', (req, res) => {
+  const limit = parseInt(req.query.limit) || 50;
+  res.json(postStore.getArchive(limit));
+});
+
+app.get('/api/posts/archive/:timestamp', (req, res) => {
+  const post = postStore.getByTimestamp(req.params.timestamp);
+  if (!post) return res.status(404).json({ error: 'Post not found' });
+  res.json(post);
+});
+
 // === Token Usage API ===
 app.get('/api/usage', (req, res) => {
-  res.json(tokenTracker.getSummary('gemini-3-flash-preview'));
+  res.json(tokenTracker.getSummary(config.minimaxModel));
 });
 
 // SSE: live updates
@@ -549,8 +579,8 @@ async function runBlogCycle() {
     console.log('[Moraqeb Blog] Generation already in progress, skipping');
     return;
   }
-  if (!config.geminiApiKey) {
-    console.log('[Moraqeb Blog] No Gemini API key — skipping');
+  if (!config.minimaxApiKey) {
+    console.log('[Moraqeb Blog] No MiniMax API key — skipping');
     return;
   }
   if (!currentData) {
@@ -564,7 +594,7 @@ async function runBlogCycle() {
   try {
     const delta = memory.getLastDelta();
     const previousSitrep = blogStore.getLatest();
-    const result = await generateSITREP(config.geminiApiKey, currentData, delta, previousSitrep);
+    const result = await generateSITREP(config.minimaxApiKey, config.minimaxModel, currentData, delta, previousSitrep);
     if (result) {
       const { sitrep, tokenUsage } = result;
       blogStore.save(sitrep);
@@ -579,6 +609,46 @@ async function runBlogCycle() {
     console.error('[Moraqeb Blog] Generation failed:', err.message);
   } finally {
     blogInProgress = false;
+  }
+}
+
+// === Post Cycle (every 15 minutes) ===
+let postInProgress = false;
+let lastPostTime = null;
+
+async function runPostCycle() {
+  if (postInProgress) {
+    console.log('[Moraqeb Post] Generation already in progress, skipping');
+    return;
+  }
+  if (!config.minimaxApiKey) {
+    console.log('[Moraqeb Post] No MiniMax API key — skipping');
+    return;
+  }
+  if (!currentData) {
+    console.log('[Moraqeb Post] No sweep data yet — skipping');
+    return;
+  }
+
+  postInProgress = true;
+  console.log('[Moraqeb Post] Starting post generation...');
+
+  try {
+    const delta = memory.getLastDelta();
+    const recentTopics = postStore.getRecentTopics(24);
+    const result = await generatePost(config.minimaxApiKey, config.minimaxModel, currentData, delta, recentTopics);
+    if (result) {
+      const { post, tokenUsage } = result;
+      postStore.save(post);
+      broadcast({ type: 'post_update', timestamp: post.timestamp });
+      lastPostTime = new Date().toISOString();
+      if (tokenUsage?.post) tokenTracker.record('post', tokenUsage.post.inputTokens, tokenUsage.post.outputTokens);
+      console.log(`[Moraqeb Post] Post generated (EN + AR)`);
+    }
+  } catch (err) {
+    console.error('[Moraqeb Post] Generation failed:', err.message);
+  } finally {
+    postInProgress = false;
   }
 }
 
@@ -732,14 +802,21 @@ async function start() {
     setInterval(runSweepCycle, config.refreshIntervalMinutes * 60 * 1000);
 
     // Schedule blog generation (decoupled from sweep)
-    if (config.geminiApiKey) {
+    if (config.minimaxApiKey) {
       // First blog after initial sweep finishes (2-minute delay)
       setTimeout(() => {
         runBlogCycle().catch(err => console.error('[Moraqeb Blog] Initial blog failed:', err.message));
       }, 2 * 60 * 1000);
       // Then every blogIntervalMinutes
       setInterval(runBlogCycle, config.blogIntervalMinutes * 60 * 1000);
-      console.log(`[Moraqeb Blog] Scheduled every ${config.blogIntervalMinutes} min`);
+      console.log(`[Moraqeb Blog] Scheduled every ${config.blogIntervalMinutes} min (MiniMax ${config.minimaxModel})`);
+
+      // Posts: first after 1 minute, then every 15 minutes
+      setTimeout(() => {
+        runPostCycle().catch(err => console.error('[Moraqeb Post] Initial post failed:', err.message));
+      }, 1 * 60 * 1000);
+      setInterval(runPostCycle, 15 * 60 * 1000);
+      console.log('[Moraqeb Post] Scheduled every 15 min (MiniMax ' + config.minimaxModel + ')');
     }
   });
 }
