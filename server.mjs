@@ -371,6 +371,8 @@ app.post('/api/chat', async (req, res) => {
     const decoder = new TextDecoder();
     let buffer = '';
     let chatInputTokens = 0, chatOutputTokens = 0;
+    let insideThink = false; // Track <think> blocks to suppress reasoning output
+    let thinkBuffer = '';    // Buffer partial tags across chunks
 
     while (true) {
       const { done, value } = await reader.read();
@@ -387,9 +389,43 @@ app.post('/api/chat', async (req, res) => {
           try {
             const parsed = JSON.parse(jsonStr);
             const delta = parsed.choices?.[0]?.delta;
-            const text = delta?.content || '';
+            let text = delta?.content || '';
             if (text) {
-              res.write(`data: ${JSON.stringify({ text })}\n\n`);
+              // Filter out <think>...</think> blocks from streaming output
+              thinkBuffer += text;
+              let filtered = '';
+              while (thinkBuffer.length > 0) {
+                if (insideThink) {
+                  const closeIdx = thinkBuffer.indexOf('</think>');
+                  if (closeIdx !== -1) {
+                    thinkBuffer = thinkBuffer.substring(closeIdx + 8);
+                    insideThink = false;
+                  } else {
+                    thinkBuffer = ''; // Still inside think, discard
+                    break;
+                  }
+                } else {
+                  const openIdx = thinkBuffer.indexOf('<think>');
+                  if (openIdx !== -1) {
+                    filtered += thinkBuffer.substring(0, openIdx);
+                    thinkBuffer = thinkBuffer.substring(openIdx + 7);
+                    insideThink = true;
+                  } else {
+                    // Check for partial <think tag at the end
+                    const partialIdx = thinkBuffer.lastIndexOf('<');
+                    if (partialIdx !== -1 && '<think>'.startsWith(thinkBuffer.substring(partialIdx))) {
+                      filtered += thinkBuffer.substring(0, partialIdx);
+                      thinkBuffer = thinkBuffer.substring(partialIdx);
+                      break;
+                    }
+                    filtered += thinkBuffer;
+                    thinkBuffer = '';
+                  }
+                }
+              }
+              if (filtered) {
+                res.write(`data: ${JSON.stringify({ text: filtered })}\n\n`);
+              }
             }
             // Capture token usage from the last chunk
             if (parsed.usage) {

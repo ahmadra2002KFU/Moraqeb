@@ -287,7 +287,7 @@ function renderPosts() {
   empty.style.display = 'none';
   feed.style.display = '';
 
-  document.getElementById('postCount').textContent = postsData.length + ' posts';
+  document.getElementById('postCount').textContent = postsData.length + (postsData.length === 1 ? ' post' : ' posts');
 
   feed.innerHTML = postsData.map(function(post) {
     var data = currentLang === 'ar' ? post.ar : post.en;
