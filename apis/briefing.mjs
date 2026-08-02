@@ -48,6 +48,16 @@ import { briefing as cisaKev } from './sources/cisa-kev.mjs';
 import { briefing as cloudflareRadar } from './sources/cloudflare-radar.mjs';
 
 const SOURCE_TIMEOUT_MS = 30_000; // 30s max per individual source
+const DEGRADED_STATUSES = new Set(['error', 'failed', 'no_credentials', 'no_key', 'unauthorized', 'rate_limited', 'unavailable', 'disabled', 'stale', 'degraded']);
+
+function classifyReturnedData(data) {
+  if (data == null) return { status: 'degraded', usable: false, reason: 'empty response' };
+  const declared = typeof data === 'object' ? String(data.status || '').toLowerCase() : '';
+  if (typeof data === 'object' && (data.error || DEGRADED_STATUSES.has(declared))) {
+    return { status: 'degraded', usable: false, reason: data.error || data.message || declared || 'declared degraded' };
+  }
+  return { status: 'usable', usable: true, reason: null };
+}
 
 export async function runSource(name, fn, ...args) {
   const start = Date.now();
@@ -58,9 +68,10 @@ export async function runSource(name, fn, ...args) {
       timer = setTimeout(() => reject(new Error(`Source ${name} timed out after ${SOURCE_TIMEOUT_MS / 1000}s`)), SOURCE_TIMEOUT_MS);
     });
     const data = await Promise.race([dataPromise, timeoutPromise]);
-    return { name, status: 'ok', durationMs: Date.now() - start, data };
+    const classification = classifyReturnedData(data);
+    return { name, ...classification, returned: true, collectedAt: new Date().toISOString(), durationMs: Date.now() - start, data };
   } catch (e) {
-    return { name, status: 'error', durationMs: Date.now() - start, error: e.message };
+    return { name, status: 'failed', usable: false, returned: false, collectedAt: new Date().toISOString(), durationMs: Date.now() - start, error: e.message };
   } finally {
     clearTimeout(timer);
   }
@@ -126,13 +137,19 @@ export async function fullBriefing() {
       timestamp: new Date().toISOString(),
       totalDurationMs: totalMs,
       sourcesQueried: sources.length,
-      sourcesOk: sources.filter(s => s.status === 'ok').length,
-      sourcesFailed: sources.filter(s => s.status !== 'ok').length,
+      sourcesOk: sources.filter(s => s.usable).length,
+      sourcesUsable: sources.filter(s => s.usable).length,
+      sourcesDegraded: sources.filter(s => s.status === 'degraded').length,
+      sourcesFailed: sources.filter(s => s.status === 'failed').length,
     },
     sources: Object.fromEntries(
-      sources.filter(s => s.status === 'ok').map(s => [s.name, s.data])
+      sources.filter(s => s.returned).map(s => [s.name, s.data])
     ),
-    errors: sources.filter(s => s.status !== 'ok').map(s => ({ name: s.name, error: s.error })),
+    errors: sources.filter(s => !s.usable).map(s => ({ name: s.name, status: s.status, error: s.error || s.reason })),
+    sourceRuns: Object.fromEntries(sources.map(s => [s.name, {
+      status: s.status, usable: s.usable, returned: s.returned, collectedAt: s.collectedAt,
+      durationMs: s.durationMs, ...(s.reason || s.error ? { reason: s.reason || s.error } : {}),
+    }])),
     timing: Object.fromEntries(
       sources.map(s => [s.name, { status: s.status, ms: s.durationMs }])
     ),

@@ -399,24 +399,35 @@ export function generateIdeas(V2) {
 
 // === Synthesize raw sweep data into dashboard format ===
 export async function synthesize(data) {
-  const liveAirHotspots = data.sources.OpenSky?.hotspots || [];
-  const airFallback = sumAirHotspots(liveAirHotspots) > 0
-    ? null
-    : loadOpenSkyFallback(data.sources.OpenSky?.timestamp || data.crucix?.timestamp);
-  const effectiveAirHotspots = airFallback?.hotspots || liveAirHotspots;
+  const openSkyRun = data.sourceRuns?.OpenSky;
+  const openSkyDeclaredStatus = String(data.sources.OpenSky?.status || '').toLowerCase();
+  const openSkyUsable = openSkyRun ? openSkyRun.usable === true : !data.sources.OpenSky?.error && !['error', 'failed', 'no_key', 'no_credentials', 'rate_limited', 'unavailable', 'degraded'].includes(openSkyDeclaredStatus);
+  const liveAirHotspots = openSkyUsable ? (data.sources.OpenSky?.hotspots || []) : [];
+  const effectiveAirHotspots = liveAirHotspots;
   const air = summarizeAirHotspots(effectiveAirHotspots);
-  const thermal = (data.sources.FIRMS?.hotspots || []).map(h => ({
-    region: h.region, det: h.totalDetections || 0, night: h.nightDetections || 0,
-    hc: h.highConfidence || 0,
-    fires: (h.highIntensity || []).slice(0, 8).map(f => ({ lat: f.lat, lon: f.lon, frp: f.frp || 0 }))
-  }));
+  const thermal = (data.sources.FIRMS?.hotspots || []).map(h => {
+    const observedAt = h.observedAt || null;
+    const observedMs = observedAt ? new Date(observedAt).getTime() : NaN;
+    return {
+      region: h.region, det: h.totalDetections || 0, night: h.nightDetections || 0,
+      hc: h.highConfidence || 0, observedAt,
+      stale: !Number.isFinite(observedMs) || (Date.now() - observedMs) > 72 * 60 * 60 * 1000,
+      fires: (h.highIntensity || []).slice(0, 8).map(f => ({ lat: f.lat, lon: f.lon, frp: f.frp || 0 }))
+    };
+  });
   const tSignals = data.sources.FIRMS?.signals || [];
   const chokepoints = Object.values(data.sources.Maritime?.chokepoints || {}).map(c => ({
     label: c.label || c.name, note: c.note || '', lat: c.lat || 0, lon: c.lon || 0
   }));
-  const nuke = (data.sources.Safecast?.sites || []).map(s => ({
-    site: s.site, anom: s.anomaly || false, cpm: s.avgCPM, n: s.recentReadings || 0
-  }));
+  const nuke = (data.sources.Safecast?.sites || []).map(s => {
+    const observedMs = s.lastReading ? new Date(s.lastReading).getTime() : NaN;
+    const derivedAgeHours = Number.isFinite(observedMs) ? (Date.now() - observedMs) / 3_600_000 : null;
+    const stale = s.stale ?? (derivedAgeHours == null || derivedAgeHours < 0 || derivedAgeHours > 7 * 24);
+    return {
+      site: s.site, anom: Boolean(s.anomaly && !stale), cpm: s.avgCPM, n: s.recentReadings || 0,
+      lastReading: s.lastReading || null, ageHours: s.ageHours ?? (derivedAgeHours == null ? null : Math.round(derivedAgeHours * 10) / 10), stale: Boolean(stale),
+    };
+  });
   const nukeSignals = (data.sources.Safecast?.signals || []).filter(s => s);
   const sdrData = data.sources.KiwiSDR || {};
   const sdrNet = sdrData.network || {};
@@ -427,13 +438,16 @@ export async function synthesize(data) {
   }));
   const tgData = data.sources.Telegram || {};
   const tgUrgent = (tgData.urgentPosts || []).filter(p => isEnglish(p.text)).map(p => ({
-    channel: p.channel, text: p.text?.substring(0, 200), views: p.views, date: p.date, urgentFlags: p.urgentFlags || []
+    channel: p.channel, text: p.text?.substring(0, 300), views: p.views, date: p.date,
+    postId: p.postId || p.id || null, url: p.url || p.permalink || null, urgentFlags: p.urgentFlags || []
   }));
   const tgTop = (tgData.topPosts || []).filter(p => isEnglish(p.text)).map(p => ({
-    channel: p.channel, text: p.text?.substring(0, 200), views: p.views, date: p.date, urgentFlags: []
+    channel: p.channel, text: p.text?.substring(0, 300), views: p.views, date: p.date,
+    postId: p.postId || p.id || null, url: p.url || p.permalink || null, urgentFlags: []
   }));
   const who = (data.sources.WHO?.diseaseOutbreakNews || []).slice(0, 10).map(w => ({
-    title: w.title?.substring(0, 120), date: w.date, summary: w.summary?.substring(0, 150)
+    title: w.title?.substring(0, 120), date: w.date, summary: w.summary?.substring(0, 150),
+    donId: w.donId || null, url: w.url || null,
   }));
   const fred = (data.sources.FRED?.indicators || []).map(f => ({
     id: f.id, label: f.label, value: f.value, date: f.date,
@@ -446,7 +460,14 @@ export async function synthesize(data) {
   const energy = {
     wti: oilPrices.wti?.value, brent: oilPrices.brent?.value,
     natgas: energyData.gasPrice?.value, crudeStocks: energyData.inventories?.crudeStocks?.value,
-    wtiRecent, signals: energyData.signals || []
+    wtiRecent, signals: energyData.signals || [],
+    fieldSources: { wti: 'EIA', brent: 'EIA', natgas: 'EIA', crudeStocks: 'EIA' },
+    observedAt: {
+      wti: oilPrices.wti?.date || oilPrices.wti?.period || null,
+      brent: oilPrices.brent?.date || oilPrices.brent?.period || null,
+      natgas: energyData.gasPrice?.date || energyData.gasPrice?.period || null,
+      crudeStocks: energyData.inventories?.crudeStocks?.date || energyData.inventories?.crudeStocks?.period || null,
+    },
   };
   const bls = data.sources.BLS?.indicators || [];
   const treasuryData = data.sources.Treasury || {};
@@ -479,6 +500,8 @@ export async function synthesize(data) {
 
   // Space/CelesTrak satellite data
   const spaceData = data.sources.Space || {};
+  const spaceRun = data.sourceRuns?.Space;
+  const spaceAvailable = spaceRun ? spaceRun.usable === true : !spaceData.error && !['error', 'failed', 'unavailable', 'degraded'].includes(String(spaceData.status || '').toLowerCase());
   // Approximate subsatellite position from TLE orbital elements
   function estimateSatPosition(sat) {
     if (!sat?.inclination || !sat?.epoch) return null;
@@ -497,6 +520,8 @@ export async function synthesize(data) {
   const issPos = estimateSatPosition(spaceData.iss);
   const spaceStations = (spaceData.spaceStations || []).map(s => estimateSatPosition(s)).filter(Boolean);
   const space = {
+    available: spaceAvailable,
+    status: spaceData.status || spaceRun?.status || (spaceAvailable ? 'usable' : 'unavailable'),
     totalNewObjects: spaceData.totalNewObjects || 0,
     militarySats: spaceData.militarySatellites || 0,
     militaryByCountry: spaceData.militaryByCountry || {},
@@ -514,7 +539,10 @@ export async function synthesize(data) {
 
   // ACLED conflict events
   const acledData = data.sources.ACLED || {};
-  const acled = acledData.error ? { totalEvents: 0, totalFatalities: 0, byRegion: {}, byType: {}, deadliestEvents: [] } : {
+  const acledRun = data.sourceRuns?.ACLED;
+  const acledUnavailable = acledRun ? !acledRun.usable : Boolean(acledData.error || ['no_credentials', 'error', 'failed'].includes(acledData.status));
+  const acled = acledUnavailable ? { available: false, status: acledData.status || acledRun?.status || 'unavailable', totalEvents: null, totalFatalities: null, byRegion: {}, byType: {}, deadliestEvents: [] } : {
+    available: true,
     totalEvents: acledData.totalEvents || 0,
     totalFatalities: acledData.totalFatalities || 0,
     byRegion: acledData.byRegion || {},
@@ -539,29 +567,35 @@ export async function synthesize(data) {
     }))
   };
 
-  const health = Object.entries(data.sources).map(([name, src]) => ({
-    n: name, err: Boolean(src.error), stale: Boolean(src.stale)
-  }));
+  const sourceNames = new Set([...Object.keys(data.sourceRuns || {}), ...Object.keys(data.sources || {}), ...(data.errors || []).map(item => item.name)]);
+  const health = [...sourceNames].map(name => {
+    const src = data.sources?.[name] || {};
+    const run = data.sourceRuns?.[name];
+    const failed = run ? run.status === 'failed' : (data.errors || []).some(item => item.name === name);
+    const degraded = run ? run.status === 'degraded' : Boolean(src.error || src.stale || ['no_credentials', 'no_key', 'rate_limited', 'unavailable', 'degraded', 'error', 'failed'].includes(src.status));
+    return { n: name, status: failed ? 'failed' : degraded ? 'degraded' : 'usable', usable: run?.usable ?? !(failed || degraded), err: failed, stale: Boolean(src.stale), collectedAt: run?.collectedAt || null };
+  });
 
   // === Yahoo Finance live market data ===
   const yfData = data.sources.YFinance || {};
   const yfQuotes = yfData.quotes || {};
+  const quoteObservedAt = q => q?.observedAt || q?.regularMarketTime || yfData.summary?.timestamp || null;
   const markets = {
     indexes: (yfData.indexes || []).map(q => ({
       symbol: q.symbol, name: q.name, price: q.price,
-      change: q.change, changePct: q.changePct, history: q.history || []
+      change: q.change, changePct: q.changePct, history: q.history || [], observedAt: quoteObservedAt(q)
     })),
     rates: (yfData.rates || []).map(q => ({
       symbol: q.symbol, name: q.name, price: q.price,
-      change: q.change, changePct: q.changePct
+      change: q.change, changePct: q.changePct, observedAt: quoteObservedAt(q)
     })),
     commodities: (yfData.commodities || []).map(q => ({
       symbol: q.symbol, name: q.name, price: q.price,
-      change: q.change, changePct: q.changePct, history: q.history || []
+      change: q.change, changePct: q.changePct, history: q.history || [], observedAt: quoteObservedAt(q)
     })),
     crypto: (yfData.crypto || []).map(q => ({
       symbol: q.symbol, name: q.name, price: q.price,
-      change: q.change, changePct: q.changePct
+      change: q.change, changePct: q.changePct, observedAt: quoteObservedAt(q)
     })),
     vix: yfQuotes['^VIX'] ? {
       value: yfQuotes['^VIX'].price,
@@ -575,9 +609,9 @@ export async function synthesize(data) {
   const yfWti = yfQuotes['CL=F'];
   const yfBrent = yfQuotes['BZ=F'];
   const yfNatgas = yfQuotes['NG=F'];
-  if (yfWti?.price) energy.wti = yfWti.price;
-  if (yfBrent?.price) energy.brent = yfBrent.price;
-  if (yfNatgas?.price) energy.natgas = yfNatgas.price;
+  if (yfWti?.price) { energy.wti = yfWti.price; energy.fieldSources.wti = 'Yahoo Finance'; energy.observedAt.wti = quoteObservedAt(yfWti); }
+  if (yfBrent?.price) { energy.brent = yfBrent.price; energy.fieldSources.brent = 'Yahoo Finance'; energy.observedAt.brent = quoteObservedAt(yfBrent); }
+  if (yfNatgas?.price) { energy.natgas = yfNatgas.price; energy.fieldSources.natgas = 'Yahoo Finance'; energy.observedAt.natgas = quoteObservedAt(yfNatgas); }
   if (yfWti?.history?.length) energy.wtiRecent = yfWti.history.map(h => h.close);
 
   // Fetch RSS
@@ -586,11 +620,14 @@ export async function synthesize(data) {
   const V2 = {
     meta: data.crucix, air, thermal, tSignals, chokepoints, nuke, nukeSignals,
     airMeta: {
-      fallback: Boolean(airFallback),
+      available: openSkyUsable,
+      status: openSkyUsable ? 'usable' : (openSkyRun?.status || openSkyDeclaredStatus || 'unavailable'),
+      fallback: false,
+      stale: false,
       liveTotal: sumAirHotspots(liveAirHotspots),
-      timestamp: airFallback?.timestamp || data.sources.OpenSky?.timestamp || data.crucix?.timestamp || null,
-      source: airFallback ? 'OpenSky fallback' : 'OpenSky',
-      ...(airFallback ? { fallbackFile: airFallback.file } : {}),
+      timestamp: openSkyUsable ? (data.sources.OpenSky?.timestamp || null) : null,
+      observedAt: openSkyUsable ? (data.sources.OpenSky?.timestamp || null) : null,
+      source: 'OpenSky',
       ...(data.sources.OpenSky?.error ? { error: data.sources.OpenSky.error } : {}),
     },
     sdr: { total: sdrNet.totalReceivers || 0, online: sdrNet.online || 0, zones: sdrZones },
@@ -623,7 +660,7 @@ function buildNewsFeed(rssNews, gdeltData, tgUrgent, tgTop) {
       const geo = geoTagText(a.title);
       feed.push({
         headline: a.title.substring(0, 100), source: 'GDELT', type: 'gdelt',
-        timestamp: new Date().toISOString(), region: geo?.region || 'Global', urgent: false, url: sanitizeExternalUrl(a.url)
+        timestamp: a.date || a.timestamp || a.seendate || null, region: geo?.region || 'Global', urgent: false, url: sanitizeExternalUrl(a.url)
       });
     }
   }
@@ -633,7 +670,7 @@ function buildNewsFeed(rssNews, gdeltData, tgUrgent, tgTop) {
     const text = (p.text || '').replace(/[\u{1F1E0}-\u{1F1FF}]/gu, '').trim();
     feed.push({
       headline: text.substring(0, 100), source: p.channel?.toUpperCase() || 'TELEGRAM',
-      type: 'telegram', timestamp: p.date, region: 'OSINT', urgent: true
+      type: 'telegram', timestamp: p.date, region: 'OSINT', urgent: true, url: p.url || null, postId: p.postId || null
     });
   }
 
@@ -642,7 +679,7 @@ function buildNewsFeed(rssNews, gdeltData, tgUrgent, tgTop) {
     const text = (p.text || '').replace(/[\u{1F1E0}-\u{1F1FF}]/gu, '').trim();
     feed.push({
       headline: text.substring(0, 100), source: p.channel?.toUpperCase() || 'TELEGRAM',
-      type: 'telegram', timestamp: p.date, region: 'OSINT', urgent: false
+      type: 'telegram', timestamp: p.date, region: 'OSINT', urgent: false, url: p.url || null, postId: p.postId || null
     });
   }
 

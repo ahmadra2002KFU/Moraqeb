@@ -377,6 +377,7 @@ body.low-perf .ticker-wrap::-webkit-scrollbar-thumb{background:rgba(100,240,200,
 <script>
 // === DATA ===
 let D = null;
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
 // === I18N ===
 const L = window.__CRUCIX_LOCALE__ || {};
@@ -595,7 +596,8 @@ function renderTopbar(){
       <a href="/voice" class="guide-btn" style="text-decoration:none;font-size:10px">VOICE</a>
       <a href="/blog" class="guide-btn" style="text-decoration:none;font-size:10px">BLOG</a>
       <a href="/posts" class="guide-btn" style="text-decoration:none;font-size:10px">POSTS</a>
-      <span class="regime-chip"><span class="blink"></span>WARTIME STAGFLATION RISK</span>
+      <a href="/executive" class="guide-btn" style="text-decoration:none;font-size:10px">EXEC</a>
+      <span class="regime-chip"><span class="blink"></span>${D.delta?.summary?.direction === 'risk-off' ? 'RISK-OFF SIGNALS' : D.delta?.summary?.direction === 'risk-on' ? 'RISK-ON SIGNALS' : 'MIXED SIGNALS'}</span>
     </div>
     ${mobile ? `<div class="top-center">${getRegionControlsMarkup()}</div>` : ''}
     <div class="top-right">
@@ -605,33 +607,36 @@ function renderTopbar(){
       <span class="meta-pill">${t('dashboard.sources','SOURCES')} <span class="v">${D.meta.sourcesOk}/${D.meta.sourcesQueried}</span></span>
       ${D.delta?.summary ? `<span class="meta-pill">${t('dashboard.delta','DELTA')} <span class="v">${D.delta.summary.direction==='risk-off'?'&#x25B2; '+t('dashboard.riskOff','RISK-OFF'):D.delta.summary.direction==='risk-on'?'&#x25BC; '+t('dashboard.riskOn','RISK-ON'):'&#x25C6; '+t('dashboard.mixed','MIXED')}</span></span>` : ''}
       <button class="guide-btn" onclick="openGlossary()">${t('dashboard.guideBtn','What Signals Mean')}</button>
-      <span class="alert-badge">${t('dashboard.highAlert','HIGH ALERT')}</span>
+      <span class="alert-badge">${D.meta.sourcesOk < D.meta.sourcesQueried ? 'DEGRADED SOURCES' : 'MONITORING'}</span>
     </div>`;
   renderRegionControls();
 }
 
 // === LEFT RAIL ===
 function renderLeftRail(){
-  const totalAir=D.air.reduce((s,a)=>s+a.total,0);
-  const totalThermal=D.thermal.reduce((s,t)=>s+t.det,0);
-  const totalNight=D.thermal.reduce((s,t)=>s+t.night,0);
+  const unavailable=t('common.unavailable','UNAVAILABLE');
+  const airAvailable=D.airMeta?.available!==false;
+  const conflictAvailable=D.acled?.available!==false;
+  const spaceAvailable=D.space?.available!==false;
+  const totalAir=airAvailable?D.air.reduce((s,a)=>s+a.total,0):unavailable;
   const newsCount=(D.news||[]).length;
-  const conflictEvents = D.acled?.totalEvents || 0;
-  const conflictFatal = D.acled?.totalFatalities || 0;
+  const conflictEvents=conflictAvailable?D.acled?.totalEvents:unavailable;
+  const conflictFatal=conflictAvailable?(D.acled?.totalFatalities||0):null;
   const layers=[
-    {name:t('layers.airActivity','Air Activity'),count:totalAir,dot:'air',sub:`${D.air.length} ${t('layers.theaters','theaters')}`},
-    {name:t('layers.thermalSpikes','Thermal Spikes'),count:totalThermal.toLocaleString(),dot:'thermal',sub:`${totalNight.toLocaleString()} ${t('layers.nightDet','night det.')}`},
+    {name:t('layers.airActivity','Air Activity'),count:totalAir,dot:'air',sub:airAvailable?`${D.air.length} ${t('layers.theaters','theaters')}`:String(D.airMeta?.status||unavailable).toUpperCase()},
+    {name:t('layers.thermalSpikes','Thermal Coverage'),count:D.thermal.length,dot:'thermal',sub:'OVERLAPPING REGIONAL ZONES'},
     {name:t('layers.sdrCoverage','SDR Coverage'),count:D.sdr.total,dot:'sdr',sub:`${D.sdr.online} ${t('layers.online','online')}`},
     {name:t('layers.maritimeWatch','Maritime Watch'),count:D.chokepoints.length,dot:'maritime',sub:t('layers.chokepoints','chokepoints')},
     {name:t('layers.nuclearSites','Nuclear Sites'),count:D.nuke.length,dot:'nuke',sub:t('layers.monitors','monitors')},
-    {name:t('layers.conflictEvents','Conflict Events'),count:conflictEvents,dot:'thermal',sub:`${conflictFatal.toLocaleString()} ${t('layers.fatalities','fatalities')}`},
+    {name:t('layers.conflictEvents','Conflict Events'),count:conflictEvents,dot:'thermal',sub:conflictAvailable?`${conflictFatal.toLocaleString()} ${t('layers.fatalities','fatalities')}`:String(D.acled?.status||unavailable).toUpperCase()},
     {name:t('layers.healthWatch','Health Watch'),count:D.who.length,dot:'health',sub:t('layers.whoAlerts','WHO alerts')},
     {name:t('layers.worldNews','World News'),count:newsCount,dot:'news',sub:t('layers.rssGeolocated','RSS geolocated')},
     {name:t('layers.osintFeed','OSINT Feed'),count:D.tg.posts,dot:'incident',sub:`${D.tg.urgent.length} ${t('badges.urgent','urgent').toLowerCase()}`},
-    {name:t('layers.spaceActivity','Satellites'),count:D.space?.militarySats||0,dot:'space',sub:`${D.space?.totalNewObjects||0} ${t('space.newLast30d','new (30d)')}`}
+    {name:t('layers.spaceActivity','Satellites'),count:spaceAvailable?(D.space?.militarySats||0):unavailable,dot:'space',sub:spaceAvailable?`${D.space?.totalNewObjects||0} ${t('space.newLast30d','new (30d)')}`:String(D.space?.status||unavailable).toUpperCase()}
   ];
-  const allNormal=D.nuke.every(s=>!s.anom);
-  const nukeHtml=D.nuke.map(s=>`<div class="site-row"><span>${s.site}</span><span class="site-val">${s.n>0?(s.cpm?.toFixed(1)||'--')+' CPM':'No data'}</span></div>`).join('');
+  const allNormal=D.nuke.every(s=>s.stale||!s.anom);
+  const staleNuke=D.nuke.filter(s=>s.stale).length;
+  const nukeHtml=D.nuke.map(s=>`<div class="site-row"><span>${esc(s.site)}</span><span class="site-val" style="${s.stale?'color:var(--warn)':''}">${s.stale?'STALE — last '+esc(s.lastReading||'unknown'):s.n>0?(s.cpm?.toFixed(1)||'--')+' CPM':'No data'}</span></div>`).join('');
   const vix=D.fred.find(f=>f.id==='VIXCLS');
   const hy=D.fred.find(f=>f.id==='BAMLH0A0HYM2');
   const usd=D.fred.find(f=>f.id==='DTWEXBGS');
@@ -646,7 +651,7 @@ function renderLeftRail(){
     </div>
     <div class="g-panel">
       <div class="sec-head"><h3>${t('panels.nuclearWatch','Nuclear Watch')}</h3><span class="badge">${t('badges.radiation','RADIATION')}</span></div>
-      <div class="nuke-ok">${allNormal?'&#9679; '+t('nuclear.allSitesNormal','ALL SITES NORMAL'):'&#9888; '+t('nuclear.anomalyDetected','ANOMALY DETECTED')}</div>
+      <div class="nuke-ok">${!allNormal?'&#9888; '+t('nuclear.anomalyDetected','ANOMALY DETECTED'):staleNuke?'&#9888; '+staleNuke+' STALE MONITOR(S) — EXCLUDED':'&#9679; '+t('nuclear.allSitesNormal','ALL FRESH SITES NORMAL')}</div>
       ${nukeHtml}
     </div>
     <div class="g-panel">
@@ -661,7 +666,7 @@ function renderLeftRail(){
     </div>
     <div class="g-panel">
       <div class="sec-head"><h3>${t('panels.spaceWatch','Space Watch')}</h3><span class="badge">${t('badges.orbital','CELESTRAK')}</span></div>
-      ${D.space ? `
+      ${D.space?.available !== false ? `
         <div class="econ-row"><span class="elabel">New Objects (30d)</span><span class="eval" style="color:var(--accent2)">${D.space.totalNewObjects||0}</span></div>
         <div class="econ-row"><span class="elabel">Military Sats</span><span class="eval">${D.space.militarySats||0}</span></div>
         <div class="econ-row"><span class="elabel">Starlink</span><span class="eval">${D.space.constellations?.starlink||0}</span></div>

@@ -16,17 +16,26 @@ import { fullBriefing } from './apis/briefing.mjs';
 import { synthesize, generateIdeas } from './dashboard/inject.mjs';
 import { MemoryManager } from './lib/delta/index.mjs';
 import { createLLMProvider } from './lib/llm/index.mjs';
+import { getPublicLLMError } from './lib/llm/errors.mjs';
+import { relayOpenAIStream } from './lib/llm/sse-relay.mjs';
 import { generateLLMIdeas } from './lib/llm/ideas.mjs';
 import { TelegramAlerter } from './lib/alerts/telegram.mjs';
 import { DiscordAlerter } from './lib/alerts/discord.mjs';
 import { buildIntelligenceContext } from './lib/context/builder.mjs';
+import { buildEvidenceCatalog, evidenceInstructions, resolveEvidence, validateCitationCoverage } from './lib/evidence/index.mjs';
 import { getChatSystemPrompt, getVoiceSystemPrompt } from './lib/prompts/strategist.mjs';
+import { normalizeChatRequest } from './lib/chat/history.mjs';
+import { sanitizePublicArtifact } from './lib/security/public-artifact.mjs';
 import { GeminiLiveSession } from './lib/llm/gemini-live.mjs';
 import { generateSITREP } from './lib/blog/generator.mjs';
 import { BlogStore } from './lib/blog/store.mjs';
 import { generatePost } from './lib/posts/generator.mjs';
 import { PostStore } from './lib/posts/store.mjs';
 import { TokenTracker } from './lib/token-tracker.mjs';
+import { GenerationQueue } from './lib/queue/generation-queue.mjs';
+import { buildWhatChanged } from './lib/delta/briefing.mjs';
+import { generateExecutiveBrief } from './lib/executive/generator.mjs';
+import { ExecutiveStore } from './lib/executive/store.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = __dirname;
@@ -35,15 +44,18 @@ const MEMORY_DIR = join(RUNS_DIR, 'memory');
 
 const BLOG_DIR = join(RUNS_DIR, 'blog');
 const POSTS_DIR = join(RUNS_DIR, 'posts');
+const EXECUTIVE_DIR = join(RUNS_DIR, 'executive');
+const QUEUE_DIR = join(RUNS_DIR, 'queue');
 
 // Ensure directories exist
-for (const dir of [RUNS_DIR, MEMORY_DIR, join(MEMORY_DIR, 'cold'), BLOG_DIR, POSTS_DIR]) {
+for (const dir of [RUNS_DIR, MEMORY_DIR, join(MEMORY_DIR, 'cold'), BLOG_DIR, POSTS_DIR, EXECUTIVE_DIR, QUEUE_DIR]) {
   if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
 }
 
 // === Blog Store + Token Tracker ===
 const blogStore = new BlogStore(BLOG_DIR);
 const postStore = new PostStore(POSTS_DIR);
+const executiveStore = new ExecutiveStore(EXECUTIVE_DIR);
 const tokenTracker = new TokenTracker(RUNS_DIR);
 
 // === State ===
@@ -55,12 +67,17 @@ const startTime = Date.now();
 const sseClients = new Set();
 
 // === Delta/Memory ===
-const memory = new MemoryManager(RUNS_DIR);
+const memory = new MemoryManager(RUNS_DIR, { thresholds: config.delta?.thresholds });
 
 // === LLM + Telegram + Discord ===
 const llmProvider = createLLMProvider(config.llm);
 const telegramAlerter = new TelegramAlerter(config.telegram);
 const discordAlerter = new DiscordAlerter(config.discord || {});
+const generationQueue = new GenerationQueue(QUEUE_DIR, {
+  post: async (payload, job) => runPostCycle(job),
+  blog: async (payload, job) => runBlogCycle(job),
+  executive: async (payload, job) => runExecutiveCycle(job),
+});
 
 if (llmProvider) console.log(`[Moraqeb] LLM enabled: ${llmProvider.name} (${llmProvider.model})`);
 if (telegramAlerter.isConfigured) {
@@ -287,8 +304,12 @@ app.get('/api/health', (req, res) => {
     sweepStartedAt,
     sourcesOk: currentData?.meta?.sourcesOk || 0,
     sourcesFailed: currentData?.meta?.sourcesFailed || 0,
-    llmEnabled: !!config.llm.provider,
-    llmProvider: config.llm.provider,
+    llmEnabled: !!llmProvider?.isConfigured,
+    llmProvider: llmProvider?.name || null,
+    llmModel: llmProvider?.model || null,
+    llmReasoningEffort: llmProvider?.reasoningEffort || null,
+    generationQueue: generationQueue.getStats(),
+    latestExecutiveBrief: executiveStore.getLatest()?.generatedAt || null,
     telegramEnabled: !!(config.telegram.botToken && config.telegram.chatId),
     refreshIntervalMinutes: config.refreshIntervalMinutes,
     language: currentLanguage,
@@ -308,58 +329,40 @@ app.get('/chat', (req, res) => res.sendFile(join(ROOT, 'dashboard/public/chat.ht
 app.get('/voice', (req, res) => res.sendFile(join(ROOT, 'dashboard/public/voice.html')));
 app.get('/blog', (req, res) => res.sendFile(join(ROOT, 'dashboard/public/blog.html')));
 app.get('/posts', (req, res) => res.sendFile(join(ROOT, 'dashboard/public/posts.html')));
+app.get('/executive', (req, res) => res.sendFile(join(ROOT, 'dashboard/public/executive.html')));
 
-// === Chat API (MiniMax M2.7 streaming) ===
+// === Chat API (configured LLM, streaming) ===
 app.use(express.json());
 
 app.post('/api/chat', async (req, res) => {
-  const { message, history } = req.body;
-  if (!message) return res.status(400).json({ error: 'message is required' });
+  let request;
+  try { request = normalizeChatRequest(req.body?.message, req.body?.history); }
+  catch { return res.status(400).json({ error: 'Invalid chat request' }); }
+  const { message, history } = request;
 
-  const apiKey = config.minimaxApiKey;
-  if (!apiKey) return res.status(503).json({ error: 'MiniMax API key not configured' });
+  if (!llmProvider?.isConfigured) {
+    return res.status(503).json({ error: 'LLM provider not configured' });
+  }
 
   // Build intelligence context from current sweep
   const delta = memory.getLastDelta();
-  const context = buildIntelligenceContext(currentData, delta);
+  const evidenceCatalog = buildEvidenceCatalog(currentData, delta);
+  const context = `${buildIntelligenceContext(currentData, delta)}\n\n${evidenceInstructions(evidenceCatalog)}`;
   const systemPrompt = getChatSystemPrompt(context);
 
-  // Build conversation messages for MiniMax (OpenAI-compatible)
+  // Build OpenAI-compatible conversation messages
   const messages = [{ role: 'system', content: systemPrompt }];
-  if (history?.length) {
-    for (const msg of history) {
-      // Convert Gemini-style { role: "model", parts } to OpenAI-style { role: "assistant", content }
-      const role = msg.role === 'model' ? 'assistant' : msg.role;
-      const content = msg.parts?.map(p => p.text).join('') || '';
-      messages.push({ role, content });
-    }
-  }
+  messages.push(...history);
   messages.push({ role: 'user', content: message });
 
-  // Stream from MiniMax
-  const minimaxUrl = 'https://api.minimax.io/v1/chat/completions';
-
   try {
-    const minimaxRes = await fetch(minimaxUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({
-        model: config.minimaxModel,
-        max_tokens: 8192,
-        stream: true,
-        messages,
-      }),
-      signal: AbortSignal.timeout(120000),
-    });
-
-    if (!minimaxRes.ok) {
-      const errText = await minimaxRes.text().catch(() => '');
-      console.error('[Moraqeb Chat] MiniMax error:', minimaxRes.status, errText.substring(0, 300));
-      return res.status(502).json({ error: `MiniMax API error: ${minimaxRes.status}` });
-    }
+    const canStream = typeof llmProvider.streamMessages === 'function';
+    const llmRes = canStream ? await llmProvider.streamMessages(messages, { maxTokens: 8192, timeout: 120000 }) : null;
+    const fallbackResult = canStream ? null : await llmProvider.complete(
+      systemPrompt,
+      messages.slice(1).map(item => `${item.role.toUpperCase()}: ${item.content}`).join('\n\n'),
+      { maxTokens: 8192, timeout: 120000 },
+    );
 
     // Relay the SSE stream
     res.writeHead(200, {
@@ -368,74 +371,23 @@ app.post('/api/chat', async (req, res) => {
       'Connection': 'keep-alive',
     });
 
-    const reader = minimaxRes.body.getReader();
-    const decoder = new TextDecoder();
-    let buffer = '';
-    let chatInputTokens = 0, chatOutputTokens = 0;
-    let insideThink = false; // Track <think> blocks to suppress reasoning output
-    let thinkBuffer = '';    // Buffer partial tags across chunks
-
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-
-      buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split('\n');
-      buffer = lines.pop() || '';
-
-      for (const line of lines) {
-        if (line.startsWith('data: ')) {
-          const jsonStr = line.substring(6).trim();
-          if (!jsonStr || jsonStr === '[DONE]') continue;
-          try {
-            const parsed = JSON.parse(jsonStr);
-            const delta = parsed.choices?.[0]?.delta;
-            let text = delta?.content || '';
-            if (text) {
-              // Filter out <think>...</think> blocks from streaming output
-              thinkBuffer += text;
-              let filtered = '';
-              while (thinkBuffer.length > 0) {
-                if (insideThink) {
-                  const closeIdx = thinkBuffer.indexOf('</think>');
-                  if (closeIdx !== -1) {
-                    thinkBuffer = thinkBuffer.substring(closeIdx + 8);
-                    insideThink = false;
-                  } else {
-                    thinkBuffer = ''; // Still inside think, discard
-                    break;
-                  }
-                } else {
-                  const openIdx = thinkBuffer.indexOf('<think>');
-                  if (openIdx !== -1) {
-                    filtered += thinkBuffer.substring(0, openIdx);
-                    thinkBuffer = thinkBuffer.substring(openIdx + 7);
-                    insideThink = true;
-                  } else {
-                    // Check for partial <think tag at the end
-                    const partialIdx = thinkBuffer.lastIndexOf('<');
-                    if (partialIdx !== -1 && '<think>'.startsWith(thinkBuffer.substring(partialIdx))) {
-                      filtered += thinkBuffer.substring(0, partialIdx);
-                      thinkBuffer = thinkBuffer.substring(partialIdx);
-                      break;
-                    }
-                    filtered += thinkBuffer;
-                    thinkBuffer = '';
-                  }
-                }
-              }
-              if (filtered) {
-                res.write(`data: ${JSON.stringify({ text: filtered })}\n\n`);
-              }
-            }
-            // Capture token usage from the last chunk
-            if (parsed.usage) {
-              chatInputTokens = parsed.usage.prompt_tokens || chatInputTokens;
-              chatOutputTokens = parsed.usage.completion_tokens || chatOutputTokens;
-            }
-          } catch { /* skip malformed chunks */ }
-        }
-      }
+    let fullResponse = '';
+    let chatInputTokens = 0;
+    let chatOutputTokens = 0;
+    if (canStream) {
+      const usage = await relayOpenAIStream(llmRes.body, {
+        onText: text => {
+          fullResponse += text;
+          res.write(`data: ${JSON.stringify({ text })}\n\n`);
+        },
+      });
+      chatInputTokens = usage.inputTokens;
+      chatOutputTokens = usage.outputTokens;
+    } else {
+      fullResponse = fallbackResult?.text || String(fallbackResult || '');
+      chatInputTokens = fallbackResult?.usage?.inputTokens || 0;
+      chatOutputTokens = fallbackResult?.usage?.outputTokens || 0;
+      res.write(`data: ${JSON.stringify({ text: fullResponse })}\n\n`);
     }
 
     // Record chat token usage
@@ -443,14 +395,18 @@ app.post('/api/chat', async (req, res) => {
       tokenTracker.record('chat', chatInputTokens, chatOutputTokens);
     }
 
+    const evidence = resolveEvidence(fullResponse, evidenceCatalog);
+    const citationValidation = validateCitationCoverage(fullResponse, evidenceCatalog);
+    res.write(`data: ${JSON.stringify({ type: 'evidence', evidence, evidenceStatus: citationValidation.status, citationValidation })}\n\n`);
     res.write('data: [DONE]\n\n');
     res.end();
   } catch (err) {
-    console.error('[Moraqeb Chat] Error:', err.message);
+    console.error('[Moraqeb Chat] Provider request failed');
+    const publicError = getPublicLLMError(err);
     if (!res.headersSent) {
-      res.status(500).json({ error: err.message });
+      res.status(502).json({ error: publicError });
     } else {
-      res.write(`data: ${JSON.stringify({ error: err.message })}\n\n`);
+      res.write(`data: ${JSON.stringify({ error: publicError })}\n\n`);
       res.end();
     }
   }
@@ -460,41 +416,65 @@ app.post('/api/chat', async (req, res) => {
 app.get('/api/blog', (req, res) => {
   const latest = blogStore.getLatest();
   if (!latest) return res.status(404).json({ error: 'No SITREP generated yet' });
-  res.json(latest);
+  res.json(sanitizePublicArtifact(latest));
 });
 
 app.get('/api/blog/archive', (req, res) => {
   const limit = parseInt(req.query.limit) || 20;
-  res.json(blogStore.getArchive(limit));
+  res.json(sanitizePublicArtifact(blogStore.getArchive(limit)));
 });
 
 app.get('/api/blog/archive/:timestamp', (req, res) => {
   const sitrep = blogStore.getByTimestamp(req.params.timestamp);
   if (!sitrep) return res.status(404).json({ error: 'SITREP not found' });
-  res.json(sitrep);
+  res.json(sanitizePublicArtifact(sitrep));
 });
 
 // === Posts API ===
 app.get('/api/posts', (req, res) => {
   const latest = postStore.getLatest();
   if (!latest) return res.status(404).json({ error: 'No posts generated yet' });
-  res.json(latest);
+  res.json(sanitizePublicArtifact(latest));
 });
 
 app.get('/api/posts/archive', (req, res) => {
   const limit = parseInt(req.query.limit) || 50;
-  res.json(postStore.getArchive(limit));
+  res.json(sanitizePublicArtifact(postStore.getArchive(limit)));
 });
 
 app.get('/api/posts/archive/:timestamp', (req, res) => {
   const post = postStore.getByTimestamp(req.params.timestamp);
   if (!post) return res.status(404).json({ error: 'Post not found' });
-  res.json(post);
+  res.json(sanitizePublicArtifact(post));
+});
+
+// === Decision Intelligence APIs ===
+app.get('/api/changes', (req, res) => {
+  res.json(buildWhatChanged(currentData || {}, memory.getLastDelta()));
+});
+
+app.get('/api/executive', (req, res) => {
+  const latest = executiveStore.getLatest();
+  if (!latest) return res.status(404).json({ error: 'No executive brief generated yet' });
+  res.json(sanitizePublicArtifact(latest));
+});
+
+app.get('/api/executive/archive', (req, res) => {
+  res.json(executiveStore.getArchive(parseInt(req.query.limit) || 30));
+});
+
+app.get('/api/queue', (req, res) => {
+  const jobs = generationQueue.getHistory(parseInt(req.query.limit) || 50).map(job => ({
+    id: job.id, type: job.type, status: job.status, attempts: job.attempts,
+    createdAt: job.createdAt, updatedAt: job.updatedAt, runAt: job.runAt, completedAt: job.completedAt,
+    hadError: !!job.lastError,
+  }));
+  res.json({ stats: generationQueue.getStats(), jobs });
 });
 
 // === Token Usage API ===
 app.get('/api/usage', (req, res) => {
-  res.json(tokenTracker.getSummary(config.minimaxModel));
+  res.json(tokenTracker.getSummary(llmProvider?.model || config.llm.model || 'disabled'));
 });
 
 // SSE: live updates
@@ -535,11 +515,21 @@ async function runSweepCycle() {
     // 1. Run the full briefing sweep
     const rawData = await fullBriefing();
 
-    // 2. Save to runs/latest.json
+    // 2. Assign immutable snapshot lineage before synthesis or generation.
+    const collectedAt = rawData.crucix?.timestamp || new Date().toISOString();
+    const rawHash = createHash('sha256').update(JSON.stringify(rawData)).digest('hex');
+    const snapshotId = `sweep_${collectedAt.replace(/[-:.]/g, '')}_${rawHash.slice(0, 12)}`;
+    rawData.crucix = { ...(rawData.crucix || {}), snapshot: { id: snapshotId, collectedAt, sha256: rawHash, hashScope: 'raw_without_lineage' } };
+    const snapshotsDir = join(RUNS_DIR, 'snapshots');
+    mkdirSync(snapshotsDir, { recursive: true });
+    const snapshotPath = join(snapshotsDir, `${snapshotId}.json`);
+    if (!existsSync(snapshotPath)) writeFileSync(snapshotPath, JSON.stringify(rawData, null, 2));
+
+    // 3. Save to runs/latest.json
     writeFileSync(join(RUNS_DIR, 'latest.json'), JSON.stringify(rawData, null, 2));
     lastSweepTime = new Date().toISOString();
 
-    // 3. Synthesize into dashboard format
+    // 4. Synthesize into dashboard format
     console.log('[Moraqeb] Synthesizing dashboard data...');
     const synthesized = await synthesize(rawData);
 
@@ -589,7 +579,12 @@ async function runSweepCycle() {
     // Prune old alerted signals
     memory.pruneAlertedSignals();
 
+    const synthesizedSnapshotPath = join(RUNS_DIR, 'snapshots', `${synthesized.meta?.snapshot?.id}.synth.json`);
+    if (synthesized.meta?.snapshot?.id && !existsSync(synthesizedSnapshotPath)) {
+      writeFileSync(synthesizedSnapshotPath, JSON.stringify(synthesized, null, 2));
+    }
     currentData = synthesized;
+    scheduleGenerationJobs();
 
     // 6. Push to all connected browsers
     broadcast({ type: 'update', data: currentData });
@@ -608,32 +603,71 @@ async function runSweepCycle() {
 }
 
 // === Blog Cycle (decoupled from sweep) ===
+function dataForGenerationJob(job) {
+  const snapshotId = job?.payload?.snapshotId;
+  if (!snapshotId) return currentData;
+  if (!/^sweep_[A-Za-z0-9_]+$/.test(snapshotId)) throw new Error('Generation snapshot identifier invalid');
+  const path = join(RUNS_DIR, 'snapshots', `${snapshotId}.synth.json`);
+  if (existsSync(path)) {
+    const serialized = readFileSync(path, 'utf8');
+    const actualHash = createHash('sha256').update(serialized).digest('hex');
+    if (job?.payload?.inputHash && actualHash !== job.payload.inputHash) throw new Error('Generation snapshot hash mismatch');
+    return JSON.parse(serialized);
+  }
+  throw new Error(`Generation snapshot unavailable: ${snapshotId}`);
+}
+
+function attachGenerationMetadata(artifact, job, generationData) {
+  artifact.schemaVersion = 'moraqeb.generated.v2';
+  artifact.snapshot = generationData?.meta?.snapshot || null;
+  artifact.generation = {
+    ...(artifact.generation || {}),
+    provider: llmProvider?.name || null,
+    model: llmProvider?.model || config.llm?.model || null,
+    promptVersion: 'evidence-v10',
+    ...(job ? {
+      jobId: job.id, scheduledFor: job.payload?.scheduledFor || null,
+      snapshotId: job.payload?.snapshotId || null,
+      inputHash: job.payload?.inputHash || null, attempt: job.attempts,
+    } : {}),
+  };
+  return artifact;
+}
+
 let blogInProgress = false;
 let lastBlogTime = null;
 
-async function runBlogCycle() {
+async function runBlogCycle(job = null) {
   if (blogInProgress) {
-    console.log('[Moraqeb Blog] Generation already in progress, skipping');
-    return;
+    throw new Error('Blog generation already in progress');
   }
-  if (!config.minimaxApiKey) {
-    console.log('[Moraqeb Blog] No MiniMax API key — skipping');
-    return;
+  if (!llmProvider?.isConfigured) {
+    throw new Error('No configured LLM for blog generation');
   }
   if (!currentData) {
-    console.log('[Moraqeb Blog] No sweep data yet — skipping');
-    return;
+    throw new Error('No sweep data for blog generation');
+  }
+  const latest = blogStore.getLatest();
+  if (job) {
+    const existing = blogStore.getByGenerationId(job.id);
+    if (existing) {
+      if (latest?.generationJobId !== job.id) blogStore.save(existing);
+      return { idempotent: true, timestamp: existing.timestamp };
+    }
   }
 
   blogInProgress = true;
   console.log(`[Moraqeb Blog] Starting blog generation cycle...`);
 
   try {
-    const delta = memory.getLastDelta();
-    const previousSitrep = blogStore.getLatest();
-    const result = await generateSITREP(config.minimaxApiKey, config.minimaxModel, currentData, delta, previousSitrep);
+    const generationData = dataForGenerationJob(job);
+    const delta = generationData.delta || memory.getLastDelta();
+    const previousSitrep = latest;
+    const result = await generateSITREP(llmProvider, generationData, delta, previousSitrep);
     if (result) {
       const { sitrep, tokenUsage } = result;
+      if (job) sitrep.generationJobId = job.id;
+      attachGenerationMetadata(sitrep, job, generationData);
       blogStore.save(sitrep);
       broadcast({ type: 'blog_update', timestamp: sitrep.timestamp });
       lastBlogTime = new Date().toISOString();
@@ -641,9 +675,12 @@ async function runBlogCycle() {
       if (tokenUsage?.blog) tokenTracker.record('blog', tokenUsage.blog.inputTokens, tokenUsage.blog.outputTokens);
       if (tokenUsage?.blogSummary) tokenTracker.record('blogSummary', tokenUsage.blogSummary.inputTokens, tokenUsage.blogSummary.outputTokens);
       console.log(`[Moraqeb Blog] SITREP generated (EN + AR) with summaries`);
+      return { timestamp: sitrep.timestamp, evidence: sitrep.evidence?.length || 0 };
     }
+    throw new Error('SITREP generator returned no result');
   } catch (err) {
-    console.error('[Moraqeb Blog] Generation failed:', err.message);
+    console.error('[Moraqeb Blog] Generation failed');
+    throw err;
   } finally {
     blogInProgress = false;
   }
@@ -654,22 +691,31 @@ let postInProgress = false;
 let lastPostTime = null;
 let lastPostDataHash = null;
 
-async function runPostCycle() {
+async function runPostCycle(job = null) {
   if (postInProgress) {
-    console.log('[Moraqeb Post] Generation already in progress, skipping');
-    return;
+    throw new Error('Post generation already in progress');
   }
-  if (!config.minimaxApiKey) {
-    console.log('[Moraqeb Post] No MiniMax API key — skipping');
-    return;
+  if (!llmProvider?.isConfigured) {
+    throw new Error('No configured LLM for post generation');
   }
   if (!currentData) {
-    console.log('[Moraqeb Post] No sweep data yet — skipping');
-    return;
+    throw new Error('No sweep data for post generation');
+  }
+  const latest = postStore.getLatest();
+  if (job) {
+    const existing = postStore.getByGenerationId(job.id);
+    if (existing) {
+      if (latest?.generationJobId !== job.id) postStore.save(existing);
+      return { idempotent: true, timestamp: existing.timestamp };
+    }
   }
 
-  // Skip if sweep data hasn't changed since last post
-  const dataHash = createHash('md5').update(JSON.stringify(currentData)).digest('hex').substring(0, 16);
+  // Skip if the queued snapshot data has not changed since the last successful post.
+  const generationData = dataForGenerationJob(job);
+  const dataHash = job?.payload?.inputHash || createHash('sha256').update(JSON.stringify(generationData)).digest('hex');
+  if (job && latest?.generation?.inputHash === dataHash && latest?.generation?.promptVersion === 'evidence-v10') {
+    return { skipped: true, reason: 'unchanged-data', timestamp: latest.timestamp };
+  }
   if (dataHash === lastPostDataHash) {
     console.log('[Moraqeb Post] Sweep data unchanged since last post — skipping');
     return;
@@ -679,32 +725,110 @@ async function runPostCycle() {
   console.log('[Moraqeb Post] Starting post generation...');
 
   try {
-    const delta = memory.getLastDelta();
+    const delta = generationData.delta || memory.getLastDelta();
     const recentTopics = postStore.getRecentTopics(24);
     const dedupCheck = (enContent) => postStore.checkDuplicate(enContent);
-    const result = await generatePost(config.minimaxApiKey, config.minimaxModel, currentData, delta, recentTopics, dedupCheck);
+    const result = await generatePost(llmProvider, generationData, delta, recentTopics, dedupCheck);
     if (result?.skipped) {
       console.log(`[Moraqeb Post] Skipped — ${result.reason}`);
       lastPostDataHash = dataHash; // Mark data as consumed even on skip
+      return { skipped: true, reason: result.reason };
     } else if (result) {
       const { post, tokenUsage } = result;
       // Don't save posts where both languages failed
       const bothFailed = post.en.title === 'Update Unavailable' && post.ar.title === 'التحديث غير متوفر';
       if (bothFailed) {
-        console.log('[Moraqeb Post] Both EN + AR failed — not saving fallback post');
+        throw new Error('Both EN + AR post generations failed');
       } else {
+        if (job) post.generationJobId = job.id;
+        attachGenerationMetadata(post, job, generationData);
         postStore.save(post);
         broadcast({ type: 'post_update', timestamp: post.timestamp });
         lastPostTime = new Date().toISOString();
         lastPostDataHash = dataHash;
         if (tokenUsage?.post) tokenTracker.record('post', tokenUsage.post.inputTokens, tokenUsage.post.outputTokens);
         console.log(`[Moraqeb Post] Post generated (EN + AR)`);
+        return { timestamp: post.timestamp, evidence: post.evidence?.length || 0 };
       }
     }
+    throw new Error('Post generator returned no result');
   } catch (err) {
-    console.error('[Moraqeb Post] Generation failed:', err.message);
+    console.error('[Moraqeb Post] Generation failed');
+    throw err;
   } finally {
     postInProgress = false;
+  }
+}
+
+async function runExecutiveCycle(job = null) {
+  if (!llmProvider?.isConfigured) throw new Error('No configured LLM for executive generation');
+  if (!currentData) throw new Error('No sweep data for executive generation');
+  const latest = executiveStore.getLatest();
+  if (job) {
+    const existing = executiveStore.getByGenerationId(job.id);
+    if (existing) {
+      if (latest?.generationJobId !== job.id) executiveStore.save(existing);
+      return { idempotent: true, timestamp: existing.timestamp };
+    }
+  }
+  const generationData = dataForGenerationJob(job);
+  const result = await generateExecutiveBrief(llmProvider, generationData, generationData.delta || memory.getLastDelta());
+  if (job) result.generationJobId = job.id;
+  attachGenerationMetadata(result, job, generationData);
+  executiveStore.save(result);
+  tokenTracker.record('executive', result.tokenUsage.inputTokens, result.tokenUsage.outputTokens);
+  broadcast({ type: 'executive_update', timestamp: result.timestamp });
+  console.log(`[Moraqeb Executive] Brief generated — ${result.evidence.length} cited sources`);
+  return { timestamp: result.timestamp, evidence: result.evidence.length };
+}
+
+function scheduleGenerationJobs(now = new Date()) {
+  if (!llmProvider?.isConfigured || !currentData) return;
+  const nowMs = now.getTime();
+  const nowIso = now.toISOString();
+  const dataTimestamp = currentData.meta?.timestamp || null;
+  const snapshotId = currentData.meta?.snapshot?.id || null;
+  const synthesizedPath = snapshotId && /^sweep_[A-Za-z0-9_]+$/.test(snapshotId)
+    ? join(RUNS_DIR, 'snapshots', `${snapshotId}.synth.json`) : null;
+  const inputHash = synthesizedPath && existsSync(synthesizedPath)
+    ? createHash('sha256').update(readFileSync(synthesizedPath, 'utf8')).digest('hex')
+    : createHash('sha256').update(JSON.stringify(currentData, null, 2)).digest('hex');
+  const postIntervalMs = 15 * 60 * 1000;
+  const blogIntervalMs = Math.max(1, config.blogIntervalMinutes || 60) * 60 * 1000;
+  const postBucket = Math.floor(nowMs / postIntervalMs);
+  const blogBucket = Math.floor(nowMs / blogIntervalMs);
+  const dayBucket = nowIso.substring(0, 10);
+  const payload = { dataTimestamp, snapshotId, inputHash };
+  const generationVersion = 'evidence-v10';
+  const queued = [];
+
+  queued.push(generationQueue.enqueue({
+    id: `post:${generationVersion}:${postBucket}`, type: 'post',
+    payload: { ...payload, scheduledFor: new Date(postBucket * postIntervalMs).toISOString() },
+  }));
+
+  const latestBlog = blogStore.getLatest();
+  const latestBlogMs = new Date(latestBlog?.timestamp || 0).getTime();
+  if (latestBlog?.generation?.promptVersion !== generationVersion || !Number.isFinite(latestBlogMs) || nowMs - latestBlogMs >= blogIntervalMs) {
+    queued.push(generationQueue.enqueue({
+      id: `blog:${generationVersion}:${blogBucket}`, type: 'blog',
+      payload: { ...payload, scheduledFor: new Date(blogBucket * blogIntervalMs).toISOString() },
+    }));
+  }
+
+  const latestExecutive = executiveStore.getLatest();
+  const latestExecutiveDay = String(latestExecutive?.generatedAt || latestExecutive?.timestamp || '').substring(0, 10);
+  if (latestExecutive?.generation?.promptVersion !== generationVersion || latestExecutiveDay !== dayBucket) {
+    queued.push(generationQueue.enqueue({
+      id: `executive:${generationVersion}:${dayBucket}`, type: 'executive',
+      payload: { ...payload, scheduledFor: `${dayBucket}T00:00:00.000Z` },
+    }));
+  }
+
+  const added = queued.filter(Boolean).length;
+  if (added) {
+    console.log(`[GenerationQueue] Enqueued ${added} durable scheduled job(s)`);
+    broadcast({ type: 'queue_update', stats: generationQueue.getStats() });
   }
 }
 
@@ -827,6 +951,12 @@ async function start() {
 
   server.on('listening', async () => {
     console.log(`[Moraqeb] Server running on http://localhost:${port}`);
+    generationQueue.start();
+    console.log('[GenerationQueue] Durable worker started');
+    for (const [type, store] of [['post', postStore], ['blog', blogStore], ['executive', executiveStore]]) {
+      const successfulJob = store.getLatest()?.generationJobId;
+      if (successfulJob) generationQueue.supersedeFailures(type, successfulJob);
+    }
 
     // Auto-open browser
     // NOTE: On Windows, `start` in PowerShell is an alias for Start-Service, not cmd's start.
@@ -840,8 +970,23 @@ async function start() {
     // Try to load existing data first for instant display (await so dashboard shows immediately)
     try {
       const existing = JSON.parse(readFileSync(join(RUNS_DIR, 'latest.json'), 'utf8'));
+      if (!existing.crucix?.snapshot) {
+        const collectedAt = existing.crucix?.timestamp || null;
+        const rawHash = createHash('sha256').update(JSON.stringify(existing)).digest('hex');
+        existing.crucix = { ...(existing.crucix || {}), snapshot: {
+          id: `sweep_${(collectedAt || 'unknown').replace(/[-:.]/g, '')}_${rawHash.slice(0, 12)}`,
+          collectedAt, sha256: rawHash, hashScope: 'raw_without_lineage',
+        } };
+      }
       const data = await synthesize(existing);
+      data.delta = memory.getLastDelta();
+      if (data.meta?.snapshot?.id) {
+        const path = join(RUNS_DIR, 'snapshots', `${data.meta.snapshot.id}.synth.json`);
+        mkdirSync(dirname(path), { recursive: true });
+        if (!existsSync(path)) writeFileSync(path, JSON.stringify(data, null, 2));
+      }
       currentData = data;
+      scheduleGenerationJobs();
       console.log('[Moraqeb] Loaded existing data from runs/latest.json — dashboard ready instantly');
       broadcast({ type: 'update', data: currentData });
     } catch {
@@ -857,22 +1002,16 @@ async function start() {
     // Schedule recurring sweeps
     setInterval(runSweepCycle, config.refreshIntervalMinutes * 60 * 1000);
 
-    // Schedule blog generation (decoupled from sweep)
-    if (config.minimaxApiKey) {
-      // First blog after initial sweep finishes (2-minute delay)
-      setTimeout(() => {
-        runBlogCycle().catch(err => console.error('[Moraqeb Blog] Initial blog failed:', err.message));
-      }, 2 * 60 * 1000);
-      // Then every blogIntervalMinutes
-      setInterval(runBlogCycle, config.blogIntervalMinutes * 60 * 1000);
-      console.log(`[Moraqeb Blog] Scheduled every ${config.blogIntervalMinutes} min (MiniMax ${config.minimaxModel})`);
+    // Reconcile generation slots independently of sweep completion. This preserves
+    // the 15-minute post cadence even when source refreshes run less frequently.
+    setInterval(() => {
+      try { scheduleGenerationJobs(); }
+      catch (err) { console.error('[GenerationQueue] Scheduler reconciliation failed'); }
+    }, 30_000);
 
-      // Posts: first after 1 minute, then every 15 minutes
-      setTimeout(() => {
-        runPostCycle().catch(err => console.error('[Moraqeb Post] Initial post failed:', err.message));
-      }, 1 * 60 * 1000);
-      setInterval(runPostCycle, 15 * 60 * 1000);
-      console.log('[Moraqeb Post] Scheduled every 15 min (MiniMax ' + config.minimaxModel + ')');
+    // Blog, post, and executive generation are enqueued as durable UTC slots.
+    if (llmProvider?.isConfigured) {
+      console.log(`[GenerationQueue] Post every 15 min, blog every ${config.blogIntervalMinutes} min, executive daily (${llmProvider.name} ${llmProvider.model})`);
     }
   });
 }

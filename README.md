@@ -125,6 +125,12 @@ A self-contained Jarvis-style HUD with:
 - **Space watch** — CelesTrak satellite tracking: recent launches, ISS, military constellations, Starlink/OneWeb counts
 - **Leverageable ideas** — AI-generated trade ideas (with LLM) or signal-correlated ideas (without)
 
+### Decision Intelligence
+- **Evidence-backed AI** — Chat, Posts, and SITREPs cite bounded source records as `[E#]`, distinguish observations from inference, and expose clickable provenance
+- **What Changed** — `/executive` prioritizes new, escalated, and de-escalated signals since the previous sweep
+- **Executive mode** — daily bilingual decision brief with developments, business impact, actions, uncertainty, confidence, and evidence
+- **Durable generation queue** — file-backed Post, SITREP, and executive jobs survive restarts, deduplicate by job ID, retry with backoff, and expose safe status at `/api/queue`
+
 ### Performance Modes
 The `VISUALS FULL` / `VISUALS LITE` button in the top bar only changes rendering behavior - it does **not** remove data sources or reduce sweep coverage.
 
@@ -149,6 +155,7 @@ The server runs a sweep cycle every 15 minutes (configurable). Each cycle:
 4. Generates LLM trade ideas (if configured)
 5. Evaluates breaking news alerts — multi-tier (FLASH / PRIORITY / ROUTINE) with semantic dedup. Sends to Telegram and/or Discord if configured. Works with LLM evaluation or falls back to rule-based alerting when LLM is unavailable.
 6. Pushes update to all connected browsers via SSE
+7. Enqueues Post, SITREP, and executive generation in the durable queue; generation failures no longer disappear on restart
 
 ### Telegram Bot (Two-Way)
 Crucix doubles as an interactive Telegram bot. Beyond sending alerts, it responds to commands directly from your chat:
@@ -220,9 +227,9 @@ These three unlock the most valuable economic and satellite data. Each takes abo
 | `AISSTREAM_API_KEY` | Maritime AIS vessel tracking | [aisstream.io](https://aisstream.io/) — free |
 | `ADSB_API_KEY` | Unfiltered flight tracking | [RapidAPI](https://rapidapi.com/adsbexchange/api/adsbexchange-com1) — ~$10/mo |
 
-### LLM Provider (optional, for AI-enhanced ideas)
+### LLM Provider
 
-Set `LLM_PROVIDER` to one of: `anthropic`, `openai`, `gemini`, `codex`, `openrouter`, `minimax`, `mistral`
+OmniRoute is enabled by default. Set `LLM_PROVIDER` to `omniroute`, `anthropic`, `openai`, `gemini`, `codex`, `openrouter`, `minimax`, `mistral`, `ollama`, or `disabled`.
 
 | Provider | Key Required | Default Model |
 |----------|-------------|---------------|
@@ -233,6 +240,8 @@ Set `LLM_PROVIDER` to one of: `anthropic`, `openai`, `gemini`, `codex`, `openrou
 | `codex` | None (uses `~/.codex/auth.json`) | gpt-5.3-codex |
 | `minimax` | `LLM_API_KEY` | MiniMax-M2.5 |
 | `mistral` | `LLM_API_KEY` | mistral-large-latest |
+| `ollama` | None | llama3.1:8b |
+| `omniroute` | Local client label or `OMNIROUTE_API_KEY` | cx/gpt-5.6-luna (low reasoning) |
 
 For Codex, run `npx @openai/codex login` to authenticate via your ChatGPT subscription.
 
@@ -412,9 +421,12 @@ All settings are in `.env` with sensible defaults:
 |----------|---------|-------------|
 | `PORT` | `3117` | Dashboard server port |
 | `REFRESH_INTERVAL_MINUTES` | `15` | Auto-refresh interval |
-| `LLM_PROVIDER` | disabled | `anthropic`, `openai`, `gemini`, `codex`, `openrouter`, `minimax`, or `mistral` |
-| `LLM_API_KEY` | — | API key (not needed for codex) |
-| `LLM_MODEL` | per-provider default | Override model selection |
+| `LLM_PROVIDER` | `omniroute` | Provider selector; use `disabled` to opt out |
+| `LLM_API_KEY` | — | Generic provider key (not needed for codex or ollama) |
+| `OMNIROUTE_API_KEY` | `local-moraqeb` for a keyless local gateway | OmniRoute-only key/client label |
+| `LLM_MODEL` | `cx/gpt-5.6-luna` for OmniRoute | Override model selection |
+| `LLM_BASE_URL` | `http://localhost:20128/v1` for OmniRoute | Provider base URL override |
+| `LLM_REASONING_EFFORT` | `low` for OmniRoute | Reasoning mode when supported |
 | `TELEGRAM_BOT_TOKEN` | disabled | For Telegram alerts + bot commands |
 | `TELEGRAM_CHAT_ID` | — | Your Telegram chat ID |
 | `TELEGRAM_CHANNELS` | — | Extra channel IDs to monitor (comma-separated) |

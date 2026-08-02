@@ -30,6 +30,27 @@ const SYMBOLS = {
   '^VIX': 'VIX',
 };
 
+export function marketObservationTime(meta = {}) {
+  const epochSeconds = Number(meta.regularMarketTime);
+  if (!Number.isFinite(epochSeconds) || epochSeconds <= 0) return null;
+  const observedAt = new Date(epochSeconds * 1000);
+  return Number.isNaN(observedAt.getTime()) ? null : observedAt.toISOString();
+}
+
+export function marketPreviousClose(meta = {}, closes = [], price = null) {
+  const official = Number(meta.previousClose);
+  if (Number.isFinite(official) && official > 0) return official;
+  const values = closes.map(Number).filter(value => Number.isFinite(value) && value > 0);
+  if (values.length) {
+    const latest = values[values.length - 1];
+    const current = Number(price);
+    if (values.length > 1 && Number.isFinite(current) && Math.abs(latest - current) < 0.01) return values[values.length - 2];
+    return latest;
+  }
+  const chartFallback = Number(meta.chartPreviousClose);
+  return Number.isFinite(chartFallback) && chartFallback > 0 ? chartFallback : null;
+}
+
 async function fetchQuote(symbol) {
   try {
     const url = `${BASE}/${encodeURIComponent(symbol)}?range=5d&interval=1d&includePrePost=false`;
@@ -50,7 +71,7 @@ async function fetchQuote(symbol) {
 
     // Get current price and previous close
     const price = meta.regularMarketPrice ?? closes[closes.length - 1];
-    const prevClose = meta.chartPreviousClose ?? meta.previousClose ?? closes[closes.length - 2];
+    const prevClose = marketPreviousClose(meta, closes, price);
     const change = price && prevClose ? price - prevClose : 0;
     const changePct = prevClose ? (change / prevClose) * 100 : 0;
 
@@ -75,6 +96,7 @@ async function fetchQuote(symbol) {
       currency: meta.currency || 'USD',
       exchange: meta.exchangeName || '',
       marketState: meta.marketState || 'UNKNOWN',
+      observedAt: marketObservationTime(meta),
       history,
     };
   } catch (e) {

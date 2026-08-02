@@ -129,6 +129,10 @@ html.light .lang-btn.active{background:var(--accent);color:#fff}
   letter-spacing:.14em;text-transform:uppercase;
   color:var(--accent);margin-bottom:14px;
 }
+.evidence-panel{margin-top:28px;padding:20px;border:1px solid var(--accent-border);background:var(--bg-surface)}
+.evidence-panel h3{font-family:var(--mono);font-size:11px;letter-spacing:.1em;color:var(--accent);margin-bottom:10px}
+.evidence-link{display:block;padding:7px 0;border-top:1px solid var(--border);font-size:12px;line-height:1.5}
+.evidence-link span{display:block;color:var(--text-muted);font-family:var(--mono);font-size:10px}
 
 /* ---- Full Analysis Toggle ---------------------------------------------- */
 .analysis-toggle{
@@ -363,6 +367,7 @@ html[dir="rtl"] .toc-item{direction:rtl}
       <a href="/voice">Voice</a>
       <a href="/blog" class="active">Blog</a>
       <a href="/posts">Posts</a>
+      <a href="/executive">Executive</a>
     </nav>
     <div class="header-controls">
       <div class="lang-toggle">
@@ -414,6 +419,7 @@ html[dir="rtl"] .toc-item{direction:rtl}
 
       <!-- Collapsible Sections -->
       <div id="sitrepSections" class="hidden"></div>
+      <div class="evidence-panel" id="evidencePanel" style="display:none"></div>
     </article>
   </main>
 
@@ -491,6 +497,16 @@ function initLang() {
 }
 
 // ---- Lightweight Markdown to HTML -----------------------------------------
+function safePublicUrl(value) {
+  try {
+    var decoded = String(value || '').replace(/&amp;/g, '&').replace(/&quot;/g, '"').replace(/&#39;/g, "'");
+    var parsed = new URL(decoded, window.location.origin);
+    return parsed.protocol === 'http:' || parsed.protocol === 'https:' ? escapeHtmlAttribute(parsed.href) : null;
+  } catch (_) { return null; }
+}
+function escapeHtmlAttribute(value) {
+  return String(value || '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/'/g, '&#39;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
 function mdToHtml(md) {
   if (!md) return '';
   var html = md.replace(/\r\n/g, '\n');
@@ -504,7 +520,7 @@ function mdToHtml(md) {
   });
 
   // Escape HTML entities
-  html = html.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  html = html.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 
   // Tables
   html = html.replace(/^(\|.+\|)\n(\|[-:\s|]+\|)\n((?:\|.+\|\n?)*)/gm, function(match, headerRow, sepRow, bodyRows) {
@@ -554,10 +570,16 @@ function mdToHtml(md) {
   html = html.replace(/\*(.+?)\*/g, '<em>$1</em>');
 
   // Images: ![alt](url)
-  html = html.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, '<img src="$2" alt="$1" loading="lazy">');
+  html = html.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, function(_, alt, url) {
+    var safe = safePublicUrl(url);
+    return safe ? '<img src="' + safe + '" alt="' + alt + '" loading="lazy">' : alt;
+  });
 
   // Links: [text](url)
-  html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
+  html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, function(_, label, url) {
+    var safe = safePublicUrl(url);
+    return safe ? '<a href="' + safe + '" target="_blank" rel="noopener noreferrer">' + label + '</a>' : label;
+  });
 
   // Inline code
   html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
@@ -643,6 +665,22 @@ function renderTOC(sections) {
       '<span class="toc-item-num">' + badge + '</span>' +
       '<span class="toc-item-label">' + escapeHtml(sec.title) + '</span>' +
     '</div>';
+  }).join('');
+}
+
+function renderEvidencePanel(evidence, status) {
+  var panel = document.getElementById('evidencePanel');
+  if (!evidence || !evidence.length) {
+    panel.style.display = '';
+    panel.innerHTML = '<h3>EVIDENCE STATUS</h3><div style="color:var(--warn);font-size:12px">No valid evidence references were returned for this briefing.</div>';
+    return;
+  }
+  panel.style.display = '';
+  var warning = status === 'partial' ? '<div style="color:var(--warn);font-size:12px;margin-bottom:10px">PARTIAL COVERAGE — unsupported claims are visibly marked [UNSUPPORTED].</div>' : '';
+  panel.innerHTML = '<h3>SUPPORTING EVIDENCE · ' + evidence.length + '</h3>' + warning + evidence.map(function(item) {
+    var label = escapeHtml(item.id + ' · ' + item.source + ' · ' + item.title);
+    var detail = escapeHtml((item.stale ? 'STALE · ' : '') + (item.timestamp || 'observation time unknown') + ' · confidence ' + (item.confidence || 'unknown'));
+    return item.url ? '<a class="evidence-link" href="' + escapeHtml(item.url) + '" target="_blank" rel="noopener">' + label + '<span>' + detail + '</span></a>' : '<div class="evidence-link">' + label + '<span>' + detail + '</span></div>';
   }).join('');
 }
 
@@ -752,6 +790,7 @@ function renderSitrep(sitrep) {
 
   // Build TOC
   renderTOC(sections);
+  renderEvidencePanel(data.evidence || sitrep.evidence || [], data.evidenceStatus || null);
 
   // Start countdown
   startCountdown(ts);

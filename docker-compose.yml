@@ -6,6 +6,8 @@ services:
       - "${PORT:-3117}:${PORT:-3117}"
     env_file:
       - .env
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     volumes:
       - ./runs:/app/runs
     restart: unless-stopped

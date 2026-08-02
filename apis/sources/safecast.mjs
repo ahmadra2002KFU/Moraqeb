@@ -4,6 +4,19 @@
 import { safeFetch } from '../utils/fetch.mjs';
 
 const BASE = 'https://api.safecast.org';
+const MAX_READING_AGE_MS = 7 * 24 * 60 * 60 * 1000;
+
+export function assessMeasurementFreshness(avgCPM, lastReading, now = new Date()) {
+  const observed = lastReading ? new Date(lastReading) : null;
+  const ageMs = observed && !Number.isNaN(observed.getTime()) ? now.getTime() - observed.getTime() : null;
+  const stale = ageMs == null || ageMs < 0 || ageMs > MAX_READING_AGE_MS;
+  return {
+    observedAt: ageMs == null ? null : observed.toISOString(),
+    ageHours: ageMs == null ? null : Math.round((ageMs / 3_600_000) * 10) / 10,
+    stale,
+    anomaly: !stale && avgCPM !== null && avgCPM > 100,
+  };
+}
 
 // Get recent measurements in an area
 export async function getMeasurements(opts = {}) {
@@ -38,6 +51,7 @@ const NUCLEAR_SITES = {
 
 // Briefing — check radiation levels near key nuclear sites
 export async function briefing() {
+  const collectedAt = new Date();
   const results = await Promise.all(
     Object.entries(NUCLEAR_SITES).map(async ([key, site]) => {
       const data = await getMeasurements({
@@ -51,6 +65,10 @@ export async function briefing() {
       const values = measurements.map(m => m.value).filter(v => typeof v === 'number');
       const avgCPM = values.length > 0 ? values.reduce((a, b) => a + b, 0) / values.length : null;
 
+      const lastReading = measurements
+        .map(m => m.captured_at).filter(Boolean)
+        .sort((a, b) => new Date(b) - new Date(a))[0] || null;
+      const freshness = assessMeasurementFreshness(avgCPM, lastReading, collectedAt);
       return {
         site: site.label,
         key,
@@ -58,21 +76,29 @@ export async function briefing() {
         avgCPM,
         maxCPM: values.length > 0 ? Math.max(...values) : null,
         // Normal background: 10-80 CPM. >100 CPM warrants attention.
-        anomaly: avgCPM !== null && avgCPM > 100,
-        lastReading: measurements[0]?.captured_at || null,
+        anomaly: freshness.anomaly,
+        lastReading: freshness.observedAt,
+        ageHours: freshness.ageHours,
+        stale: freshness.stale,
       };
     })
   );
 
   const anomalies = results.filter(r => r.anomaly);
+  const freshSites = results.filter(r => !r.stale && r.recentReadings > 0);
 
   return {
     source: 'Safecast',
-    timestamp: new Date().toISOString(),
+    timestamp: collectedAt.toISOString(),
+    status: freshSites.length ? 'ok' : 'stale',
+    stale: freshSites.length === 0,
+    usableSites: freshSites.length,
     sites: results,
     signals: anomalies.length > 0
       ? anomalies.map(a => `ELEVATED RADIATION at ${a.site}: ${a.avgCPM?.toFixed(1)} CPM (normal: 10-80)`)
-      : ['All monitored nuclear sites within normal radiation levels'],
+      : freshSites.length
+        ? ['All fresh monitored nuclear-site readings are within normal radiation levels']
+        : ['No fresh radiation readings available; stale readings excluded from anomaly detection'],
   };
 }
 

@@ -83,6 +83,13 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 .msg-body code{direction:ltr;unicode-bidi:isolate}
 .msg-body pre{direction:ltr;unicode-bidi:isolate;text-align:left}
 .msg-row.user .msg-body{color:#cce4f0}
+.evidence-list{margin-top:14px;padding-top:12px;border-top:1px solid var(--border)}
+.evidence-title{font-family:var(--mono);font-size:10px;color:var(--accent);letter-spacing:.08em;margin-bottom:8px}
+.evidence-item{font-size:11px;line-height:1.5;margin:5px 0;color:var(--dim)}
+.evidence-item a{color:var(--accent2)}
+.evidence-warning{font-family:var(--mono);font-size:10px;color:var(--warn);margin-top:12px}
+.claim-tag{font-family:var(--mono);font-size:9px;padding:1px 5px;border:1px solid var(--border);color:var(--accent)}
+.evidence-ref.unsupported{color:var(--danger);text-decoration:line-through}
 
 /* ── Markdown styles inside messages ── */
 .msg-body h1,.msg-body h2,.msg-body h3,.msg-body h4{font-family:var(--mono);color:var(--text);margin:16px 0 8px;letter-spacing:0.04em}
@@ -191,6 +198,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
       <a href="/voice" class="nav-link">Voice</a>
       <a href="/blog" class="nav-link">Blog</a>
       <a href="/posts" class="nav-link">Posts</a>
+      <a href="/executive" class="nav-link">Executive</a>
       <div class="status-badge" id="statusBadge">
         <span class="dot"></span>
         <span class="label-text">LAST SWEEP</span>
@@ -300,7 +308,18 @@ fetchHealth();
 setInterval(fetchHealth, 30000);
 
 // ── Markdown renderer ──
-function renderMarkdown(text) {
+function safeMarkdownUrl(value) {
+  try {
+    const decoded = String(value || '').replace(/&amp;/g, '&');
+    const parsed = new URL(decoded, window.location.origin);
+    return parsed.protocol === 'http:' || parsed.protocol === 'https:' ? escapeHtmlAttribute(parsed.href) : null;
+  } catch (_) { return null; }
+}
+function escapeHtmlAttribute(value) {
+  return String(value || '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/'/g, '&#39;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+function renderMarkdown(text, evidence) {
+  const validEvidence = Array.isArray(evidence) ? new Set(evidence.map(function(item) { return item.id; })) : null;
   // Escape HTML first
   let html = text
     .replace(/&/g, '&amp;')
@@ -341,11 +360,19 @@ function renderMarkdown(text) {
   html = html.replace(/\*\*\*(.+?)\*\*\*/g, '<strong><em>$1</em></strong>');
   // Bold
   html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+  html = html.replace(/\[(OBSERVED|INFERENCE)\]/g, '<span class="claim-tag">$1</span>');
+  html = html.replace(/\[(E\d+)\]/g, function(match, id) {
+    const unsupported = validEvidence && !validEvidence.has(id);
+    return '<strong class="evidence-ref' + (unsupported ? ' unsupported' : '') + '">[' + id + ']</strong>';
+  });
   // Italic
   html = html.replace(/\*(.+?)\*/g, '<em>$1</em>');
 
   // Links
-  html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
+  html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, function(_, label, url) {
+    const safe = safeMarkdownUrl(url);
+    return safe ? '<a href="' + safe + '" target="_blank" rel="noopener noreferrer">' + label + '</a>' : label;
+  });
 
   // Unordered lists
   html = html.replace(/(^|\n)((?:[\t ]*[-*] .+\n?)+)/g, function(_, pre, block) {
@@ -379,6 +406,25 @@ function renderMarkdown(text) {
   html = html.replace(/<\/blockquote>\s*<blockquote>/g, '<br>');
 
   return html;
+}
+
+function escapeEvidence(value) {
+  return String(value || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+function renderEvidenceHtml(evidence, status) {
+  var warning = status === 'partial'
+    ? '<div class="evidence-warning">PARTIAL CITATION COVERAGE — SOME MATERIAL CLAIMS ARE NOT SUPPORTED</div>'
+    : status === 'uncited' ? '<div class="evidence-warning">NO VALID EVIDENCE REFERENCES RETURNED</div>' : '';
+  if (!evidence || !evidence.length) return warning;
+  return warning + '<div class="evidence-list"><div class="evidence-title">SUPPORTING EVIDENCE · ' + evidence.length + '</div>' +
+    evidence.map(function(item) {
+      var label = escapeEvidence(item.id) + ' · ' + escapeEvidence(item.source) + ' · ' + escapeEvidence(item.title);
+      var freshness = item.stale ? 'STALE · ' : '';
+      var observed = item.timestamp || 'observation time unknown';
+      return '<div class="evidence-item">' + (item.url ? '<a href="' + escapeEvidence(item.url) + '" target="_blank" rel="noopener noreferrer">' + label + '</a>' : label) +
+        '<br><span>' + freshness + escapeEvidence(observed) + ' · confidence ' + escapeEvidence(item.confidence || 'unknown') + '</span></div>';
+    }).join('') + '</div>';
 }
 
 // ── Time formatting ──
@@ -482,6 +528,8 @@ async function sendMessage(text) {
     const reader = res.body.getReader();
     const decoder = new TextDecoder();
     let fullText = '';
+    let responseEvidence = [];
+    let evidenceStatus = null;
     let buffer = '';
 
     // Remove typing indicator
@@ -512,6 +560,9 @@ async function sendMessage(text) {
             fullText += parsed.text;
             aiBody.innerHTML = renderMarkdown(fullText);
             scrollToBottom();
+          } else if (parsed.type === 'evidence') {
+            responseEvidence = parsed.evidence || [];
+            evidenceStatus = parsed.evidenceStatus || null;
           }
         } catch (e) {
           // skip unparseable chunks
@@ -521,7 +572,7 @@ async function sendMessage(text) {
 
     // Ensure final render
     if (fullText) {
-      aiBody.innerHTML = renderMarkdown(fullText);
+      aiBody.innerHTML = renderMarkdown(fullText, responseEvidence) + renderEvidenceHtml(responseEvidence, evidenceStatus);
       conversationHistory.push({ role: 'model', parts: [{ text: fullText }] });
     } else {
       aiBody.innerHTML = '<p style="color:var(--dim);font-style:italic">No response received.</p>';

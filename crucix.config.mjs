@@ -1,18 +1,14 @@
 // Moraqeb (مراقب) Configuration — all settings with env var overrides
 
 import "./apis/utils/env.mjs"; // Load .env first
+import { resolveLLMConfig } from "./lib/llm/config.mjs";
 
 export default {
   port: parseInt(process.env.PORT) || 3117,
   refreshIntervalMinutes: parseInt(process.env.REFRESH_INTERVAL_MINUTES) || 15,
   blogIntervalMinutes: parseInt(process.env.BLOG_INTERVAL_MINUTES) || 60,
 
-  llm: {
-    provider: process.env.LLM_PROVIDER || null, // anthropic | openai | gemini | codex | openrouter | minimax | mistral | ollama
-    apiKey: process.env.LLM_API_KEY || null,
-    model: process.env.LLM_MODEL || null,
-    baseUrl: process.env.OLLAMA_BASE_URL || null,
-  },
+  llm: resolveLLMConfig(process.env),
 
   telegram: {
     botToken: process.env.TELEGRAM_BOT_TOKEN || null,

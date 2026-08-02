@@ -1,0 +1,611 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>MORAQEB — Executive Intelligence</title>
+  <link rel="icon" href="/favicon.ico">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Noto+Sans+Arabic:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    * { box-sizing: border-box; }
+    [hidden] { display: none !important; }
+    :root {
+      --bg: #071015;
+      --surface: #0d171d;
+      --surface-2: #111e25;
+      --surface-3: #16262e;
+      --text: #edf5f2;
+      --text-soft: #bdccc7;
+      --muted: #82958e;
+      --accent: #5ce0b7;
+      --accent-soft: rgba(92, 224, 183, .11);
+      --border: rgba(194, 228, 217, .12);
+      --danger: #ff7277;
+      --warning: #f0b65a;
+      --warning-soft: rgba(240, 182, 90, .1);
+      --info: #71b9e6;
+      --mono: 'IBM Plex Mono', monospace;
+      --sans: 'Space Grotesk', sans-serif;
+      --arabic: 'Noto Sans Arabic', sans-serif;
+    }
+
+    html { background: var(--bg); color-scheme: dark; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background:
+        radial-gradient(circle at 8% 0%, rgba(92, 224, 183, .06), transparent 28rem),
+        var(--bg);
+      color: var(--text);
+      font-family: var(--sans);
+      line-height: 1.65;
+      -webkit-font-smoothing: antialiased;
+    }
+    html[dir="rtl"] body { font-family: var(--arabic); }
+
+    .topbar {
+      position: sticky;
+      top: 0;
+      z-index: 20;
+      border-bottom: 1px solid var(--border);
+      background: rgba(7, 16, 21, .9);
+      backdrop-filter: blur(18px);
+    }
+    .topbar-inner {
+      max-width: 1180px;
+      min-height: 64px;
+      margin: 0 auto;
+      padding: 0 24px;
+      display: flex;
+      align-items: center;
+      gap: 24px;
+    }
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-right: auto;
+      color: var(--accent);
+      font: 600 11px var(--mono);
+      letter-spacing: .13em;
+      text-decoration: none;
+      white-space: nowrap;
+    }
+    html[dir="rtl"] .brand { margin-right: 0; margin-left: auto; }
+    .brand img { width: 28px; height: 28px; object-fit: contain; }
+    .nav { display: flex; align-items: center; gap: 2px; }
+    .nav a, .language button {
+      border: 0;
+      background: transparent;
+      color: var(--muted);
+      padding: 8px 10px;
+      font: 500 10px var(--mono);
+      letter-spacing: .07em;
+      text-transform: uppercase;
+      text-decoration: none;
+      cursor: pointer;
+    }
+    .nav a:hover, .language button:hover { color: var(--text); }
+    .nav a.active, .language button.active {
+      color: var(--accent);
+      background: var(--accent-soft);
+      border-radius: 6px;
+    }
+    .language { display: flex; border-left: 1px solid var(--border); padding-left: 10px; }
+    html[dir="rtl"] .language { border-left: 0; border-right: 1px solid var(--border); padding-left: 0; padding-right: 10px; }
+
+    .page { max-width: 1180px; margin: 0 auto; padding: 52px 24px 88px; }
+    .loading, .empty-state {
+      min-height: 40vh;
+      display: grid;
+      place-items: center;
+      color: var(--muted);
+      font-size: 15px;
+    }
+
+    .hero {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 150px;
+      gap: 48px;
+      align-items: start;
+      padding-bottom: 42px;
+      border-bottom: 1px solid var(--border);
+    }
+    .kicker {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-bottom: 15px;
+      color: var(--muted);
+      font: 500 10px var(--mono);
+      letter-spacing: .1em;
+      text-transform: uppercase;
+    }
+    .kicker .dot { width: 4px; height: 4px; border-radius: 50%; background: var(--accent); }
+    h1 {
+      max-width: 850px;
+      margin: 0;
+      font-size: clamp(30px, 4vw, 47px);
+      line-height: 1.08;
+      letter-spacing: -.035em;
+      text-wrap: balance;
+    }
+    html[dir="rtl"] h1 { letter-spacing: 0; line-height: 1.35; }
+    .summary {
+      max-width: 850px;
+      margin-top: 20px;
+      color: var(--text-soft);
+      font-size: clamp(16px, 1.7vw, 19px);
+      line-height: 1.78;
+    }
+    html[dir="rtl"] .summary { line-height: 2; }
+    .hero-status { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 22px; }
+    .status-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      padding: 6px 10px;
+      color: var(--muted);
+      font: 500 10px var(--mono);
+      letter-spacing: .035em;
+      text-transform: uppercase;
+    }
+    .status-pill::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--accent); }
+    .status-pill.partial { color: var(--warning); border-color: rgba(240,182,90,.32); background: var(--warning-soft); }
+    .status-pill.partial::before { background: var(--warning); }
+
+    .risk-card {
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 18px 16px;
+      text-align: center;
+      background: rgba(13, 23, 29, .72);
+    }
+    .risk-label { color: var(--muted); font: 500 9px var(--mono); letter-spacing: .13em; text-transform: uppercase; }
+    .risk-level { margin-top: 5px; font: 700 21px var(--mono); }
+    html[dir="rtl"] .risk-level { font-family: var(--arabic); letter-spacing: 0; }
+    .risk-card.HIGH, .risk-card.CRITICAL { border-color: rgba(255,114,119,.38); color: var(--danger); }
+    .risk-card.MEDIUM { border-color: rgba(240,182,90,.35); color: var(--warning); }
+    .risk-card.LOW { border-color: rgba(92,224,183,.32); color: var(--accent); }
+
+    .section { margin-top: 52px; }
+    .section-header { display: flex; align-items: end; justify-content: space-between; gap: 18px; margin-bottom: 18px; }
+    .section-header h2 { margin: 0; font-size: 20px; letter-spacing: -.015em; }
+    html[dir="rtl"] .section-header h2 { letter-spacing: 0; }
+    .section-note { color: var(--muted); font-size: 12px; }
+
+    .developments { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+    .development-card {
+      min-width: 0;
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 22px;
+      background: linear-gradient(145deg, rgba(17,30,37,.92), rgba(13,23,29,.92));
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+    }
+    .card-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+    .claim-state {
+      display: inline-flex;
+      align-items: center;
+      border-radius: 999px;
+      padding: 5px 8px;
+      color: var(--muted);
+      background: rgba(255,255,255,.035);
+      font: 500 9px var(--mono);
+      letter-spacing: .06em;
+      text-transform: uppercase;
+    }
+    .claim-state.gap { color: var(--warning); background: var(--warning-soft); }
+    .confidence { color: var(--muted); font: 500 9px var(--mono); letter-spacing: .06em; text-transform: uppercase; }
+    .development-card h3 { margin: 0; font-size: 19px; line-height: 1.35; text-wrap: balance; }
+    .detail { display: grid; gap: 6px; }
+    .detail-label { color: var(--accent); font: 500 9px var(--mono); letter-spacing: .1em; text-transform: uppercase; }
+    .detail p { margin: 0; color: var(--text-soft); font-size: 14px; line-height: 1.65; }
+    .detail.recommendation { margin-top: auto; border-top: 1px solid var(--border); padding-top: 16px; }
+    .detail.recommendation p { color: var(--text); font-weight: 500; }
+
+    .decision-grid { display: grid; grid-template-columns: 1.15fr .85fr; gap: 18px; }
+    .panel { border: 1px solid var(--border); border-radius: 14px; background: rgba(13,23,29,.76); overflow: hidden; }
+    .numbered-list, .uncertainty-list { list-style: none; margin: 0; padding: 0; }
+    .numbered-list li, .uncertainty-list li {
+      display: grid;
+      grid-template-columns: 32px 1fr;
+      gap: 13px;
+      padding: 17px 20px;
+      border-bottom: 1px solid var(--border);
+      color: var(--text-soft);
+      font-size: 14px;
+    }
+    .numbered-list li:last-child, .uncertainty-list li:last-child { border-bottom: 0; }
+    .item-number {
+      width: 28px;
+      height: 28px;
+      display: grid;
+      place-items: center;
+      border-radius: 8px;
+      color: var(--accent);
+      background: var(--accent-soft);
+      font: 600 11px var(--mono);
+    }
+    .uncertainty-list .item-number { color: var(--warning); background: var(--warning-soft); }
+
+    .change-panel { border: 1px solid var(--border); border-radius: 14px; padding: 22px; background: rgba(13,23,29,.66); }
+    .change-summary { margin: 0; color: var(--text-soft); font-size: 16px; }
+    .metrics { display: grid; grid-template-columns: repeat(5, minmax(0,1fr)); gap: 9px; margin-top: 20px; }
+    .metric { padding: 13px; border-radius: 9px; background: var(--surface-2); }
+    .metric span { display: block; color: var(--muted); font: 500 9px var(--mono); text-transform: uppercase; letter-spacing: .06em; }
+    .metric strong { display: block; margin-top: 4px; font: 600 20px var(--mono); }
+    .change-list { display: grid; gap: 8px; margin-top: 16px; }
+    .change-item { display: grid; grid-template-columns: auto 1fr auto; gap: 12px; align-items: center; padding: 12px 0; border-top: 1px solid var(--border); }
+    .severity { color: var(--warning); font: 600 9px var(--mono); letter-spacing: .06em; text-transform: uppercase; }
+    .change-numbers { color: var(--muted); font: 500 11px var(--mono); white-space: nowrap; }
+    html[dir="rtl"] .change-numbers { direction: ltr; text-align: left; }
+
+    .evidence-panel { border: 1px solid var(--border); border-radius: 14px; background: rgba(13,23,29,.56); }
+    .evidence-panel summary {
+      list-style: none;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      padding: 18px 20px;
+      cursor: pointer;
+      color: var(--text);
+      font-weight: 600;
+    }
+    .evidence-panel summary::-webkit-details-marker { display: none; }
+    .evidence-panel summary::after { content: '+'; color: var(--accent); font: 500 20px var(--mono); }
+    .evidence-panel[open] summary::after { content: '−'; }
+    .evidence-count { color: var(--muted); font: 500 10px var(--mono); }
+    .coverage-note { margin: 0 20px 14px; color: var(--warning); font-size: 13px; }
+    .evidence-list { border-top: 1px solid var(--border); }
+    .evidence-row {
+      display: grid;
+      grid-template-columns: 130px 1fr auto;
+      gap: 16px;
+      align-items: center;
+      padding: 14px 20px;
+      border-bottom: 1px solid var(--border);
+      color: inherit;
+      text-decoration: none;
+    }
+    .evidence-row:last-child { border-bottom: 0; }
+    .evidence-row:hover { background: rgba(92,224,183,.035); }
+    .source { color: var(--accent); font: 500 10px var(--mono); }
+    .evidence-title { font-size: 14px; }
+    .evidence-meta { color: var(--muted); font: 400 10px var(--mono); text-align: end; }
+    .stale { color: var(--warning); }
+
+    .empty-inline { color: var(--muted); padding: 20px; }
+
+    @media (max-width: 920px) {
+      .nav { display: none; }
+      .hero { grid-template-columns: 1fr; gap: 24px; }
+      .risk-card { width: 145px; text-align: left; }
+      html[dir="rtl"] .risk-card { text-align: right; }
+      .developments { grid-template-columns: 1fr; }
+      .decision-grid { grid-template-columns: 1fr; }
+      .metrics { grid-template-columns: repeat(3, 1fr); }
+      .evidence-row { grid-template-columns: 110px 1fr; }
+      .evidence-meta { grid-column: 2; text-align: start; }
+    }
+    @media (max-width: 560px) {
+      .topbar-inner { padding: 0 16px; }
+      .brand span { display: none; }
+      .page { padding: 34px 16px 64px; }
+      h1 { font-size: 30px; }
+      .summary { font-size: 16px; }
+      .section { margin-top: 40px; }
+      .metrics { grid-template-columns: repeat(2, 1fr); }
+      .change-item { grid-template-columns: 1fr; }
+      .evidence-row { grid-template-columns: 1fr; gap: 4px; }
+      .evidence-meta { grid-column: auto; }
+    }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="topbar-inner">
+      <a class="brand" href="/">
+        <img src="/logo-header.png" alt="Moraqeb">
+        <span>EXECUTIVE INTELLIGENCE</span>
+      </a>
+      <nav class="nav" aria-label="Primary navigation">
+        <a href="/">Dashboard</a>
+        <a href="/chat">Chat</a>
+        <a href="/voice">Voice</a>
+        <a href="/blog">Blog</a>
+        <a href="/posts">Posts</a>
+        <a class="active" href="/executive">Executive</a>
+      </nav>
+      <div class="language" aria-label="Language">
+        <button id="enBtn" class="active" type="button" onclick="setLang('en')">EN</button>
+        <button id="arBtn" type="button" onclick="setLang('ar')">AR</button>
+      </div>
+    </div>
+  </header>
+
+  <main class="page">
+    <div id="loading" class="loading">Loading decision intelligence…</div>
+    <div id="content" hidden>
+      <section class="hero">
+        <div>
+          <div class="kicker">
+            <span id="briefLabel">Decision brief</span>
+            <span class="dot"></span>
+            <time id="generated"></time>
+          </div>
+          <h1 id="title"></h1>
+          <div class="summary" id="summary"></div>
+          <div class="hero-status" id="heroStatus"></div>
+        </div>
+        <aside class="risk-card" id="risk">
+          <div class="risk-label" id="riskLabel">Risk level</div>
+          <div class="risk-level" id="riskLevel"></div>
+        </aside>
+      </section>
+
+      <section class="section">
+        <div class="section-header">
+          <h2 id="developmentsHeading">Top developments</h2>
+          <span class="section-note" id="developmentsNote"></span>
+        </div>
+        <div class="developments" id="developments"></div>
+      </section>
+
+      <section class="section decision-grid">
+        <div>
+          <div class="section-header"><h2 id="actionsHeading">Decisions and actions</h2></div>
+          <div class="panel"><ol class="numbered-list" id="actions"></ol></div>
+        </div>
+        <div>
+          <div class="section-header"><h2 id="uncertaintiesHeading">Key uncertainties</h2></div>
+          <div class="panel"><ul class="uncertainty-list" id="uncertainties"></ul></div>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="section-header"><h2 id="changesHeading">What changed</h2></div>
+        <div class="change-panel">
+          <p class="change-summary" id="changeSummary"></p>
+          <div class="metrics" id="counts"></div>
+          <div class="change-list" id="changes"></div>
+        </div>
+      </section>
+
+      <section class="section">
+        <details class="evidence-panel" id="evidencePanel">
+          <summary>
+            <span id="evidenceHeading">Supporting evidence</span>
+            <span class="evidence-count" id="evidenceCount"></span>
+          </summary>
+          <p class="coverage-note" id="coverageNote" hidden></p>
+          <div class="evidence-list" id="evidence"></div>
+        </details>
+      </section>
+    </div>
+  </main>
+
+  <script>
+    var brief = null;
+    var changes = null;
+    var lang = 'en';
+
+    var COPY = {
+      en: {
+        brief: 'Decision brief', risk: 'Risk level', developments: 'Top developments', developmentsNote: 'Priority items for leadership',
+        actions: 'Decisions and actions', uncertainties: 'Key uncertainties', changes: 'What changed', evidence: 'Supporting evidence',
+        evidenceCount: function(n) { return n + ' sources'; }, partial: 'Evidence gaps identified', validated: 'Evidence-backed brief',
+        observed: 'Observed', assessment: 'Assessment', gap: 'Needs verification', why: 'Why it matters', impact: 'Business impact', action: 'Recommended action',
+        confidence: 'confidence', total: 'Total', critical: 'Critical', fresh: 'New', escalated: 'Escalated', deescalated: 'De-escalated',
+        noDevelopments: 'No priority developments generated.', noItems: 'No items available.', noChanges: 'No material changes crossed the configured thresholds.',
+        noEvidence: 'No cited evidence is available.', coverage: 'Some claims require further verification. Review the supporting sources before acting.',
+        unknownTime: 'observation time unknown', stale: 'STALE', loadError: 'Unable to load executive intelligence.', waiting: 'Executive brief is being prepared.'
+      },
+      ar: {
+        brief: 'إحاطة تنفيذية', risk: 'مستوى المخاطر', developments: 'أهم التطورات', developmentsNote: 'الأولويات القيادية',
+        actions: 'القرارات والإجراءات', uncertainties: 'نقاط عدم اليقين', changes: 'ما الذي تغير', evidence: 'الأدلة الداعمة',
+        evidenceCount: function(n) { return n + ' مصادر'; }, partial: 'توجد فجوات في الأدلة', validated: 'إحاطة مدعومة بالأدلة',
+        observed: 'معلومة مرصودة', assessment: 'تقدير تحليلي', gap: 'يحتاج إلى تحقق', why: 'لماذا يهم', impact: 'الأثر على الأعمال', action: 'الإجراء المقترح',
+        confidence: 'درجة الثقة', total: 'الإجمالي', critical: 'حرج', fresh: 'جديد', escalated: 'تصاعد', deescalated: 'تراجع',
+        noDevelopments: 'لا توجد تطورات ذات أولوية.', noItems: 'لا توجد عناصر متاحة.', noChanges: 'لم تتجاوز أي تغيرات جوهرية الحدود المحددة.',
+        noEvidence: 'لا تتوفر أدلة مستشهد بها.', coverage: 'تتطلب بعض الادعاءات مزيدا من التحقق. راجع المصادر الداعمة قبل اتخاذ القرار.',
+        unknownTime: 'وقت الرصد غير معروف', stale: 'قديم', loadError: 'تعذر تحميل الإحاطة التنفيذية.', waiting: 'يجري إعداد الإحاطة التنفيذية.'
+      }
+    };
+
+    function esc(value) {
+      return String(value == null ? '' : value)
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+    }
+
+    function cleanText(value) {
+      return String(value || '')
+        .replace(/\[(?:OBSERVED|INFERENCE|UNSUPPORTED)\]\s*/gi, '')
+        .replace(/\[E\d+\]\s*/g, '')
+        .replace(/\s+([.,;:!?؟])/g, '$1')
+        .replace(/\s{2,}/g, ' ')
+        .trim();
+    }
+
+    function claimState(values) {
+      var raw = values.filter(Boolean).join(' ');
+      if (/\[UNSUPPORTED\]/i.test(raw)) return 'gap';
+      if (/\[INFERENCE\]/i.test(raw)) return 'assessment';
+      return 'observed';
+    }
+
+    function safeEvidenceUrl(value) {
+      try {
+        var parsed = new URL(String(value || ''), window.location.origin);
+        return parsed.protocol === 'http:' || parsed.protocol === 'https:' ? parsed.href : null;
+      } catch (_) { return null; }
+    }
+
+    function formatDate(value) {
+      if (!value) return COPY[lang].unknownTime;
+      var date = new Date(value);
+      if (Number.isNaN(date.getTime())) return COPY[lang].unknownTime;
+      return new Intl.DateTimeFormat(lang === 'ar' ? 'ar-SA' : 'en-GB', {
+        day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit'
+      }).format(date);
+    }
+
+    function stateLabel(state) {
+      var copy = COPY[lang];
+      return state === 'gap' ? copy.gap : state === 'assessment' ? copy.assessment : copy.observed;
+    }
+
+    function confidenceLabel(value) {
+      var level = String(value || 'unknown').toUpperCase();
+      if (lang === 'ar') return ({ HIGH: 'عالية', MEDIUM: 'متوسطة', LOW: 'منخفضة', UNKNOWN: 'غير معروفة' })[level] || cleanText(value);
+      return cleanText(value || 'unknown');
+    }
+
+    function setLang(next) {
+      lang = next === 'ar' ? 'ar' : 'en';
+      document.documentElement.lang = lang;
+      document.documentElement.dir = lang === 'ar' ? 'rtl' : 'ltr';
+      document.getElementById('enBtn').classList.toggle('active', lang === 'en');
+      document.getElementById('arBtn').classList.toggle('active', lang === 'ar');
+      render();
+      renderChanges();
+    }
+
+    function render() {
+      if (!brief) return;
+      var copy = COPY[lang];
+      var data = brief[lang] || brief.en || {};
+      var riskLevel = String(data.riskLevel || 'MEDIUM').toUpperCase();
+      var riskTranslations = lang === 'ar' ? { LOW: 'منخفض', MEDIUM: 'متوسط', HIGH: 'مرتفع', CRITICAL: 'حرج' } : {};
+
+      document.getElementById('briefLabel').textContent = copy.brief;
+      document.getElementById('generated').textContent = formatDate(brief.generatedAt || brief.timestamp);
+      document.getElementById('title').textContent = cleanText(data.title) || (lang === 'ar' ? 'الإحاطة التنفيذية' : 'Executive intelligence brief');
+      document.getElementById('summary').textContent = cleanText(data.summary);
+      document.getElementById('riskLabel').textContent = copy.risk;
+      document.getElementById('riskLevel').textContent = riskTranslations[riskLevel] || riskLevel;
+      document.getElementById('risk').className = 'risk-card ' + esc(riskLevel);
+
+      document.getElementById('developmentsHeading').textContent = copy.developments;
+      document.getElementById('developmentsNote').textContent = copy.developmentsNote;
+      document.getElementById('actionsHeading').textContent = copy.actions;
+      document.getElementById('uncertaintiesHeading').textContent = copy.uncertainties;
+      document.getElementById('changesHeading').textContent = copy.changes;
+      document.getElementById('evidenceHeading').textContent = copy.evidence;
+
+      var overallState = data.evidenceStatus === 'partial' ? 'partial' : 'validated';
+      document.getElementById('heroStatus').innerHTML = '<span class="status-pill ' + overallState + '">' + esc(overallState === 'partial' ? copy.partial : copy.validated) + '</span>';
+
+      var developments = Array.isArray(data.developments) ? data.developments : [];
+      document.getElementById('developments').innerHTML = developments.length ? developments.map(function(item) {
+        var state = claimState([item.title, item.whyItMatters, item.businessImpact, item.action]);
+        return '<article class="development-card">' +
+          '<div class="card-top"><span class="claim-state ' + state + '">' + esc(stateLabel(state)) + '</span><span class="confidence">' + esc(copy.confidence) + ' ' + esc(confidenceLabel(item.confidence)) + '</span></div>' +
+          '<h3>' + esc(cleanText(item.title)) + '</h3>' +
+          '<div class="detail"><span class="detail-label">' + esc(copy.why) + '</span><p>' + esc(cleanText(item.whyItMatters)) + '</p></div>' +
+          '<div class="detail"><span class="detail-label">' + esc(copy.impact) + '</span><p>' + esc(cleanText(item.businessImpact)) + '</p></div>' +
+          '<div class="detail recommendation"><span class="detail-label">' + esc(copy.action) + '</span><p>' + esc(cleanText(item.action)) + '</p></div>' +
+        '</article>';
+      }).join('') : '<div class="empty-inline">' + esc(copy.noDevelopments) + '</div>';
+
+      renderList('actions', data.actions, false, copy.noItems);
+      renderList('uncertainties', data.uncertainties, true, copy.noItems);
+      renderEvidence(data.evidence || brief.evidence || [], data.evidenceStatus);
+    }
+
+    function renderList(id, values, warning, emptyText) {
+      var items = Array.isArray(values) ? values : [];
+      var target = document.getElementById(id);
+      target.innerHTML = items.length ? items.map(function(item, index) {
+        return '<li><span class="item-number">' + (warning ? '!' : index + 1) + '</span><span>' + esc(cleanText(item)) + '</span></li>';
+      }).join('') : '<li><span></span><span>' + esc(emptyText) + '</span></li>';
+    }
+
+    function renderChanges() {
+      if (!changes) return;
+      var copy = COPY[lang];
+      var counts = changes.counts || {};
+      var total = Number(counts.total || 0);
+      var critical = Number(counts.critical || 0);
+      var directionAr = Number(counts.escalated || 0) > Number(counts.deescalated || 0) ? 'تصاعدي' : Number(counts.deescalated || 0) > Number(counts.escalated || 0) ? 'تراجعي' : 'مختلط';
+      document.getElementById('changeSummary').textContent = lang === 'ar'
+        ? 'تم رصد ' + total + ' تغيرات جوهرية منذ الجولة السابقة، منها ' + critical + ' تغيرات حرجة؛ والاتجاه العام ' + directionAr + '.'
+        : (cleanText(changes.summary) || copy.noChanges);
+      var metrics = [
+        [copy.total, counts.total], [copy.critical, counts.critical], [copy.fresh, counts.new],
+        [copy.escalated, counts.escalated], [copy.deescalated, counts.deescalated]
+      ];
+      document.getElementById('counts').innerHTML = metrics.map(function(metric) {
+        return '<div class="metric"><span>' + esc(metric[0]) + '</span><strong>' + esc(metric[1] || 0) + '</strong></div>';
+      }).join('');
+      var topChanges = Array.isArray(changes.topChanges) ? changes.topChanges : [];
+      document.getElementById('changes').innerHTML = topChanges.length ? topChanges.map(function(item) {
+        var numbers = item.from !== null && item.from !== undefined ? esc(item.from) + ' → ' + esc(item.to) : '';
+        if (item.pctChange !== null && item.pctChange !== undefined) numbers += ' (' + esc(item.pctChange) + '%)';
+        var severity = String(item.severity || 'moderate').toUpperCase();
+        var severityLabel = lang === 'ar' ? ({ MODERATE: 'متوسط', HIGH: 'مرتفع', CRITICAL: 'حرج', LOW: 'منخفض' })[severity] || severity : severity;
+        var title = cleanText(item.title);
+        if (lang === 'ar' && title === 'Sources OK') title = 'حالة المصادر المتاحة';
+        return '<div class="change-item"><span class="severity">' + esc(severityLabel) + '</span><span>' + esc(title) + '</span><span class="change-numbers">' + numbers + '</span></div>';
+      }).join('') : '';
+    }
+
+    function renderEvidence(items, status) {
+      var copy = COPY[lang];
+      var evidence = Array.isArray(items) ? items : [];
+      document.getElementById('evidenceCount').textContent = copy.evidenceCount(evidence.length);
+      var coverage = document.getElementById('coverageNote');
+      coverage.hidden = status !== 'partial';
+      coverage.textContent = status === 'partial' ? copy.coverage : '';
+      document.getElementById('evidence').innerHTML = evidence.length ? evidence.map(function(item) {
+        var url = safeEvidenceUrl(item.url);
+        var time = item.timestamp ? formatDate(item.timestamp) : copy.unknownTime;
+        var freshness = item.stale ? '<span class="stale">' + esc(copy.stale) + ' · </span>' : '';
+        var body = '<span class="source">' + esc(item.source || 'Source') + '</span>' +
+          '<span class="evidence-title">' + esc(cleanText(item.title)) + '</span>' +
+          '<span class="evidence-meta">' + freshness + esc(time) + '</span>';
+        return url ? '<a class="evidence-row" href="' + esc(url) + '" target="_blank" rel="noopener noreferrer" data-evidence-id="' + esc(item.id) + '">' + body + '</a>' : '<div class="evidence-row" data-evidence-id="' + esc(item.id) + '">' + body + '</div>';
+      }).join('') : '<div class="empty-inline">' + esc(copy.noEvidence) + '</div>';
+    }
+
+    async function load() {
+      try {
+        var response = await fetch('/api/executive');
+        if (!response.ok) {
+          document.getElementById('loading').textContent = COPY[lang].waiting;
+          return;
+        }
+        brief = await response.json();
+        changes = brief.whatChanged || null;
+        document.getElementById('loading').hidden = true;
+        document.getElementById('content').hidden = false;
+        render();
+        renderChanges();
+      } catch (_) {
+        document.getElementById('loading').textContent = COPY[lang].loadError;
+      }
+    }
+
+    load();
+    setInterval(load, 30000);
+    try {
+      var events = new EventSource('/events');
+      events.onmessage = function(event) {
+        try {
+          var data = JSON.parse(event.data);
+          if (['executive_update', 'update'].includes(data.type)) load();
+        } catch (_) {}
+      };
+    } catch (_) {}
+  </script>
+</body>
+</html>

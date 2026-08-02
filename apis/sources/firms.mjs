@@ -59,6 +59,18 @@ const HOTSPOTS = {
   southAsia: { west: 60, south: 5, east: 98, north: 37, label: 'South Asia' },
 };
 
+export function latestFirmsObservationTime(fires = []) {
+  let latest = null;
+  for (const fire of fires) {
+    const date = String(fire?.acq_date || '');
+    const time = String(fire?.acq_time || '').padStart(4, '0');
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !/^\d{4}$/.test(time)) continue;
+    const observed = new Date(`${date}T${time.slice(0, 2)}:${time.slice(2)}:00Z`);
+    if (!Number.isNaN(observed.getTime()) && (!latest || observed > latest)) latest = observed;
+  }
+  return latest ? latest.toISOString() : null;
+}
+
 // Analyze fire detections for potential military/strike activity
 function analyzeFires(fires, regionLabel) {
   if (!Array.isArray(fires) || fires.length === 0) {
@@ -89,6 +101,7 @@ function analyzeFires(fires, regionLabel) {
 
   return {
     region: regionLabel,
+    observedAt: latestFirmsObservationTime(fires),
     totalDetections: fires.length,
     highConfidence: highConf.length,
     nominalConfidence: nomConf.length,

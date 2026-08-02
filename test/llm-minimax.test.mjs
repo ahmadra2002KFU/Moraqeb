@@ -102,6 +102,33 @@ describe('MiniMaxProvider', () => {
     }
   });
 
+  it('should stream arbitrary chat messages for legacy chat compatibility', async () => {
+    const provider = new MiniMaxProvider({ apiKey: 'sk-test-key', model: 'MiniMax-M2.7' });
+    let capturedOpts;
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = mock.fn((_url, opts) => {
+      capturedOpts = opts;
+      return Promise.resolve(new Response('data: [DONE]\n\n', {
+        status: 200,
+        headers: { 'Content-Type': 'text/event-stream' },
+      }));
+    });
+    try {
+      const response = await provider.streamMessages([
+        { role: 'system', content: 'system' },
+        { role: 'user', content: 'hello' },
+      ], { maxTokens: 128 });
+      const body = JSON.parse(capturedOpts.body);
+      assert.equal(body.model, 'MiniMax-M2.7');
+      assert.equal(body.max_tokens, 128);
+      assert.equal(body.stream, true);
+      assert.equal(body.messages[1].content, 'hello');
+      assert.equal(response.status, 200);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
   it('should handle empty response gracefully', async () => {
     const provider = new MiniMaxProvider({ apiKey: 'sk-test' });
     const originalFetch = globalThis.fetch;
