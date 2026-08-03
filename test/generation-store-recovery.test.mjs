@@ -13,9 +13,10 @@ describe('generation artifact recovery', () => {
       const dir = mkdtempSync(join(tmpdir(), `moraqeb-${name}-`));
       try {
         const store = new Store(dir);
-        const artifact = { timestamp: '2026-08-02T12:00:00.123Z', generatedAt: '2026-08-02T12:00:01Z', generationJobId: `${name}:job`, generation: { jobId: `${name}:job` }, en: { evidenceStatus: 'partial', evidence: [] }, ar: { evidenceStatus: 'validated', evidence: [] } };
+        const validLanguage = { evidenceStatus: 'validated', citationValidation: { valid: true, citedIds: ['E1'], unsupportedIds: [], unsupportedClaims: [], coverage: { evidenceRequired: 1, supported: 1, rate: 1 } }, evidence: [{ id: 'E1' }] };
+        const artifact = { schemaVersion: 'moraqeb.generated.v2', timestamp: '2026-08-02T12:00:00.123Z', generatedAt: '2026-08-02T12:00:01Z', generationJobId: `${name}:job`, generation: { jobId: `${name}:job`, scheduledFor: '2026-08-02T12:00:00.123Z', promptVersion: 'evidence-v11', snapshotId: 'sweep_test_1', inputHash: 'a'.repeat(64) }, en: { ...validLanguage }, ar: { ...validLanguage } };
         store.save(artifact);
-        if (name !== 'executive') assert.equal(store.getArchive(1)[0].en.evidenceStatus, 'partial');
+        if (name !== 'executive') assert.equal(store.getArchive(1)[0].en.evidenceStatus, 'validated');
         unlinkSync(join(dir, 'latest.json'));
         const recovered = store.getByGenerationId(`${name}:job`);
         assert.equal(recovered.generationJobId, `${name}:job`);

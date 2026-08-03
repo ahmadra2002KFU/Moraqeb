@@ -311,11 +311,13 @@ export function generateIdeas(V2) {
       type: 'long', confidence: 'High', horizon: 'strategic'
     });
   }
-  const totalThermal = V2.thermal.reduce((s, t) => s + t.det, 0);
-  if (totalThermal > 30000 && V2.tg.urgent.length > 2) {
+  const uniqueThermal = V2.thermalMeta?.available !== false && !V2.thermalMeta?.stale
+    ? Number(V2.thermalMeta?.uniqueDetections)
+    : NaN;
+  if (Number.isFinite(uniqueThermal) && uniqueThermal > 30000 && V2.tg.urgent.length > 2) {
     ideas.push({
-      title: 'Satellite Confirms Conflict Intensity',
-      text: `${totalThermal.toLocaleString()} thermal detections + ${V2.tg.urgent.length} urgent OSINT flags. Defense sector procurement may accelerate.`,
+      title: 'Elevated Thermal Anomaly Activity',
+      text: `NASA FIRMS recorded ${uniqueThermal.toLocaleString()} unique thermal anomalies; cause is unverified. ${V2.tg.urgent.length} separate OSINT flags warrant monitoring.`,
       type: 'watch', confidence: 'Medium', horizon: 'swing'
     });
   }
@@ -349,11 +351,10 @@ export function generateIdeas(V2) {
 
   // Defense + Conflict Intensity
   const totalFatalities = V2.acled?.totalFatalities || 0;
-  const totalThermalAll = V2.thermal.reduce((s, t) => s + t.det, 0);
-  if (totalFatalities > 500 && totalThermalAll > 20000) {
+  if (totalFatalities > 500 && Number.isFinite(uniqueThermal) && uniqueThermal > 20000) {
     ideas.push({
-      title: 'Defense Procurement Acceleration Signal',
-      text: `${totalFatalities.toLocaleString()} conflict fatalities + ${totalThermalAll.toLocaleString()} thermal detections. Defense contractors may see accelerated procurement.`,
+      title: 'Conflict and Thermal Risk Watch',
+      text: `ACLED reports ${totalFatalities.toLocaleString()} conflict fatalities while NASA FIRMS recorded ${uniqueThermal.toLocaleString()} unique thermal anomalies; the sources do not establish a causal link.`,
       type: 'long', confidence: 'Medium', horizon: 'swing'
     });
   }
@@ -399,29 +400,52 @@ export function generateIdeas(V2) {
 
 // === Synthesize raw sweep data into dashboard format ===
 export async function synthesize(data) {
+  const referenceMs = Date.parse(data.crucix?.timestamp || data.timestamp || '');
   const openSkyRun = data.sourceRuns?.OpenSky;
   const openSkyDeclaredStatus = String(data.sources.OpenSky?.status || '').toLowerCase();
   const openSkyUsable = openSkyRun ? openSkyRun.usable === true : !data.sources.OpenSky?.error && !['error', 'failed', 'no_key', 'no_credentials', 'rate_limited', 'unavailable', 'degraded'].includes(openSkyDeclaredStatus);
   const liveAirHotspots = openSkyUsable ? (data.sources.OpenSky?.hotspots || []) : [];
   const effectiveAirHotspots = liveAirHotspots;
   const air = summarizeAirHotspots(effectiveAirHotspots);
-  const thermal = (data.sources.FIRMS?.hotspots || []).map(h => {
+  const openSkyObservedAt = openSkyUsable ? (data.sources.OpenSky?.observedAt || null) : null;
+  const openSkyObservedMs = openSkyObservedAt ? Date.parse(openSkyObservedAt) : NaN;
+  const thermal = (data.sources.FIRMS?.hotspots || []).filter(h => !h.error && h.totalDetections != null && Number.isFinite(Number(h.totalDetections))).map(h => {
     const observedAt = h.observedAt || null;
     const observedMs = observedAt ? new Date(observedAt).getTime() : NaN;
     return {
-      region: h.region, det: h.totalDetections || 0, night: h.nightDetections || 0,
-      hc: h.highConfidence || 0, observedAt,
-      stale: !Number.isFinite(observedMs) || (Date.now() - observedMs) > 72 * 60 * 60 * 1000,
+      region: h.region, det: Number(h.totalDetections), night: Number.isFinite(Number(h.nightDetections)) ? Number(h.nightDetections) : null,
+      hc: Number.isFinite(Number(h.highConfidence)) ? Number(h.highConfidence) : null, observedAt,
+      stale: !Number.isFinite(referenceMs) || !Number.isFinite(observedMs) || observedMs > referenceMs + 5 * 60 * 1000 || (referenceMs - observedMs) > 24 * 60 * 60 * 1000,
       fires: (h.highIntensity || []).slice(0, 8).map(f => ({ lat: f.lat, lon: f.lon, frp: f.frp || 0 }))
     };
   });
+  const firmsRun = data.sourceRuns?.FIRMS;
+  const firmsDeduplicated = data.sources.FIRMS?.deduplicated || null;
+  const thermalObservedMs = firmsDeduplicated?.observedAt ? new Date(firmsDeduplicated.observedAt).getTime() : NaN;
+  const thermalMeta = {
+    available: (firmsRun ? firmsRun.usable === true : Boolean(firmsDeduplicated)) && firmsDeduplicated?.coverage?.complete !== false,
+    status: firmsRun?.status || data.sources.FIRMS?.status || (firmsDeduplicated ? 'usable' : 'unavailable'),
+    uniqueDetections: firmsDeduplicated?.totalDetections ?? null,
+    duplicateMemberships: firmsDeduplicated?.duplicateMemberships ?? null,
+    highConfidence: firmsDeduplicated?.highConfidence ?? null,
+    nightDetections: firmsDeduplicated?.nightDetections ?? null,
+    observationIds: firmsDeduplicated?.observationIds || [],
+    highConfidenceObservationIds: firmsDeduplicated?.highConfidenceObservationIds || [],
+    product: firmsDeduplicated?.product || null,
+    windowHours: firmsDeduplicated?.windowHours || null,
+    coverage: firmsDeduplicated?.coverage || null,
+    observedAt: firmsDeduplicated?.observedAt || null,
+    stale: !Number.isFinite(referenceMs) || !Number.isFinite(thermalObservedMs) || thermalObservedMs > referenceMs + 5 * 60 * 1000 || (referenceMs - thermalObservedMs) > 24 * 60 * 60 * 1000,
+    regionsOverlap: true,
+    method: firmsDeduplicated?.method || null,
+  };
   const tSignals = data.sources.FIRMS?.signals || [];
   const chokepoints = Object.values(data.sources.Maritime?.chokepoints || {}).map(c => ({
     label: c.label || c.name, note: c.note || '', lat: c.lat || 0, lon: c.lon || 0
   }));
   const nuke = (data.sources.Safecast?.sites || []).map(s => {
     const observedMs = s.lastReading ? new Date(s.lastReading).getTime() : NaN;
-    const derivedAgeHours = Number.isFinite(observedMs) ? (Date.now() - observedMs) / 3_600_000 : null;
+    const derivedAgeHours = Number.isFinite(referenceMs) && Number.isFinite(observedMs) ? (referenceMs - observedMs) / 3_600_000 : null;
     const stale = s.stale ?? (derivedAgeHours == null || derivedAgeHours < 0 || derivedAgeHours > 7 * 24);
     return {
       site: s.site, anom: Boolean(s.anomaly && !stale), cpm: s.avgCPM, n: s.recentReadings || 0,
@@ -618,15 +642,15 @@ export async function synthesize(data) {
   const news = await fetchAllNews();
 
   const V2 = {
-    meta: data.crucix, air, thermal, tSignals, chokepoints, nuke, nukeSignals,
+    meta: data.crucix, air, thermal, thermalMeta, tSignals, chokepoints, nuke, nukeSignals,
     airMeta: {
       available: openSkyUsable,
       status: openSkyUsable ? 'usable' : (openSkyRun?.status || openSkyDeclaredStatus || 'unavailable'),
       fallback: false,
-      stale: false,
+      stale: !Number.isFinite(referenceMs) || !Number.isFinite(openSkyObservedMs) || openSkyObservedMs > referenceMs + 5 * 60 * 1000 || (referenceMs - openSkyObservedMs) > 15 * 60 * 1000,
       liveTotal: sumAirHotspots(liveAirHotspots),
       timestamp: openSkyUsable ? (data.sources.OpenSky?.timestamp || null) : null,
-      observedAt: openSkyUsable ? (data.sources.OpenSky?.timestamp || null) : null,
+      observedAt: openSkyObservedAt,
       source: 'OpenSky',
       ...(data.sources.OpenSky?.error ? { error: data.sources.OpenSky.error } : {}),
     },

@@ -1,7 +1,7 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { buildEvidenceCatalog, formatEvidenceCatalog, resolveEvidence, sanitizeCitations, validateCitationCoverage, markUnsupportedClaims } from '../lib/evidence/index.mjs';
+import { assessEvidenceSet, buildEvidenceCatalog, formatEvidenceCatalog, resolveEvidence, sanitizeCitations, validateCitationCoverage, markUnsupportedClaims } from '../lib/evidence/index.mjs';
 
 const fixture = {
   meta: { timestamp: '2026-08-02T12:00:00.000Z' },
@@ -92,5 +92,110 @@ describe('evidence catalog', () => {
     assert.equal(result.valid, false);
     assert.equal(result.status, 'partial');
     assert.equal(result.uncitedClaims.length, 1);
+  });
+
+  it('attaches a citation placed immediately after sentence punctuation to that claim', () => {
+    const catalog = buildEvidenceCatalog(fixture);
+    const id = catalog[0].id;
+    const result = validateCitationCoverage(`[OBSERVED] Verified headline. [${id}]`, catalog);
+    assert.equal(result.valid, true);
+    assert.equal(result.uncitedClaims.length, 0);
+    assert.equal(result.mismatchedClaims.length, 0);
+  });
+
+  it('does not require evidence for explicitly marked analytical inference', () => {
+    const catalog = buildEvidenceCatalog(fixture);
+    const id = catalog[0].id;
+    const result = validateCitationCoverage(`[OBSERVED] Verified headline [${id}]. [INFERENCE] Monitor the situation closely.`, catalog);
+    assert.equal(result.valid, true);
+    assert.equal(result.claims.find(claim => claim.kind === 'inference')?.supported, true);
+  });
+
+  it('matches scaled quantities such as billions to raw source amounts', () => {
+    const catalog = [{
+      id: 'E123456789012', title: 'Boeing defense award', observation: '22440000000 awarded',
+      source: 'USAspending.gov', timestamp: '2026-08-01T00:00:00Z',
+    }];
+    const result = validateCitationCoverage('[OBSERVED] Boeing received $22.44 billion in awards [E123456789012].', catalog);
+    assert.equal(result.valid, true);
+  });
+
+  it('reports complete coverage metrics and does not truncate unsupported claim lists', () => {
+    const catalog = buildEvidenceCatalog(fixture);
+    const id = catalog[0].id;
+    const unsupported = Array.from({ length: 25 }, (_, i) => `[OBSERVED] Unsupported event ${i + 1}.`).join('\n');
+    const result = validateCitationCoverage(`[OBSERVED] Verified headline [${id}].\n${unsupported}`, catalog);
+    assert.equal(result.uncitedClaims.length, 25);
+    assert.equal(result.coverage.evidenceRequired, 26);
+    assert.equal(result.coverage.supported, 1);
+  });
+
+  it('requires independent non-social source families for high-confidence corroboration', () => {
+    const catalog = [
+      { id: 'E1', source: 'Official A', url: 'https://official-a.example/report', confidence: 'high', reliability: 'primary', freshness: 'fresh' },
+      { id: 'E2', source: 'Official B', url: 'https://official-b.example/report', confidence: 'high', reliability: 'primary', freshness: 'fresh' },
+      { id: 'E3', source: 'Social', confidence: 'low', reliability: 'social', freshness: 'fresh' },
+    ];
+    assert.equal(assessEvidenceSet(['E1'], catalog).confidenceCap, 'MEDIUM');
+    assert.equal(assessEvidenceSet(['E1', 'E2'], catalog).confidenceCap, 'HIGH');
+    assert.equal(assessEvidenceSet(['E1', 'E2'], catalog).level, 'corroborated');
+    assert.equal(assessEvidenceSet(['E3'], catalog).confidenceCap, 'LOW');
+  });
+
+  it('deduplicates syndicated evidence and excludes contextual derivatives from corroboration', () => {
+    const catalog = [
+      { id: 'E1', source: 'Aggregator', url: 'https://wire.example/report?utm_source=x', confidence: 'high', reliability: 'secondary', freshness: 'fresh' },
+      { id: 'E2', source: 'RSS', url: 'https://wire.example/report', confidence: 'high', reliability: 'secondary', freshness: 'fresh' },
+      { id: 'E3', source: 'Derived delta', confidence: 'high', reliability: 'derived', supportKind: 'context', freshness: 'fresh' },
+    ];
+    const result = assessEvidenceSet(['E1', 'E2', 'E3'], catalog);
+    assert.equal(result.independentRecords, 2);
+    assert.equal(result.directRecords, 1);
+    assert.equal(result.nonSocialFamilies, 1);
+    assert.equal(result.confidenceCap, 'MEDIUM');
+  });
+
+  it('protects abbreviations and prevents citation bleed across semicolon-delimited claims', () => {
+    const catalog = buildEvidenceCatalog(fixture);
+    const id = catalog.find(item => item.source === 'Test Wire').id;
+    const valid = validateCitationCoverage(`[OBSERVED] The U.S. verified the headline [${id}].`, catalog);
+    assert.equal(valid.valid, true);
+    assert.equal(valid.claims.length, 1);
+
+    const pooled = validateCitationCoverage(`[OBSERVED] Iran attacked Israel; the verified headline was published [${id}].`, catalog);
+    assert.equal(pooled.valid, false);
+    assert.equal(pooled.uncitedClaims.length, 1);
+  });
+
+  it('rejects factual laundering as inference and citation-only text', () => {
+    const catalog = buildEvidenceCatalog(fixture);
+    const id = catalog.find(item => item.source === 'Test Wire').id;
+    assert.equal(validateCitationCoverage(`[INFERENCE] Iran attacked Israel. [${id}]`, catalog).valid, false);
+    assert.equal(validateCitationCoverage('[INFERENCE] Iran attacked Israel, increasing risk.', catalog).valid, false);
+    assert.equal(validateCitationCoverage('[INFERENCE] Monitor after Iran attacked Israel.', catalog).valid, false);
+    assert.equal(validateCitationCoverage('[INFERENCE] Risk management should account for Iran attack on Israel.', catalog).valid, false);
+    assert.equal(validateCitationCoverage(`[${id}]`, catalog).valid, false);
+  });
+
+  it('does not treat allowCrossLanguage alone as proof that unrelated Arabic matches English evidence', () => {
+    const catalog = buildEvidenceCatalog(fixture);
+    const id = catalog.find(item => item.source === 'Test Wire').id;
+    const unrelated = `[OBSERVED] هاجمت دولة دولة أخرى ووقعت أضرار كبيرة [${id}].`;
+    assert.equal(validateCitationCoverage(unrelated, catalog, { allowCrossLanguage: true }).valid, false);
+  });
+
+  it('requires explicit cross-language inheritance before accepting Arabic lexical matching', () => {
+    const catalog = buildEvidenceCatalog(fixture);
+    const id = catalog.find(item => item.source === 'Test Wire').id;
+    const text = `[OBSERVED] ادعاء عربي غير مرتبط بالمصدر [${id}].`;
+    assert.equal(validateCitationCoverage(text, catalog).valid, false);
+    assert.equal(validateCitationCoverage(text, catalog, { allowCrossLanguage: true }).valid, false);
+    assert.equal(validateCitationCoverage(text, catalog, { allowCrossLanguage: true, crossLanguageVerified: true }).valid, true);
+  });
+
+  it('does not exempt short factual claims or Markdown table rows', () => {
+    const catalog = buildEvidenceCatalog(fixture);
+    assert.equal(validateCitationCoverage('War started.', catalog).valid, false);
+    assert.equal(validateCitationCoverage('| Entity | Value |\n|---|---|\n| Iran | 17 |', catalog).valid, false);
   });
 });

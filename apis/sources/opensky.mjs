@@ -63,46 +63,57 @@ const HOTSPOTS = {
   hornOfAfrica: { lamin: 5, lomin: 40, lamax: 15, lomax: 55, label: 'Horn of Africa' },
 };
 
+function stateInBox(state, box) {
+  const longitude = Number(state?.[5]);
+  const latitude = Number(state?.[6]);
+  return Number.isFinite(longitude) && Number.isFinite(latitude)
+    && latitude >= box.lamin && latitude <= box.lamax
+    && longitude >= box.lomin && longitude <= box.lomax;
+}
+
+export function regionalizeStates(states = []) {
+  return Object.entries(HOTSPOTS).map(([key, box]) => {
+    const regional = states.filter(state => stateInBox(state, box));
+    return {
+      region: box.label,
+      key,
+      totalAircraft: regional.length,
+      byCountry: regional.reduce((acc, state) => {
+        const country = state[2] || 'Unknown';
+        acc[country] = (acc[country] || 0) + 1;
+        return acc;
+      }, {}),
+      noCallsign: regional.filter(state => !state[1]?.trim()).length,
+      highAltitude: regional.filter(state => Number(state[7]) > 12000).length,
+    };
+  });
+}
+
 // Briefing — check hotspot regions for flight activity
 export async function briefing() {
-  const hotspotEntries = Object.entries(HOTSPOTS);
-  const results = await Promise.all(
-    hotspotEntries.map(async ([key, box]) => {
-      const data = await getFlightsInArea(box.lamin, box.lomin, box.lamax, box.lomax);
-      const error = data?.error || null;
-      const states = data?.states || [];
-      return {
-        region: box.label,
-        key,
-        totalAircraft: states.length,
-        // states format: [icao24, callsign, origin_country, ...]
-        byCountry: states.reduce((acc, s) => {
-          const country = s[2] || 'Unknown';
-          acc[country] = (acc[country] || 0) + 1;
-          return acc;
-        }, {}),
-        // Flag potentially interesting (military often have no callsign or specific patterns)
-        noCallsign: states.filter(s => !s[1]?.trim()).length,
-        highAltitude: states.filter(s => s[7] && s[7] > 12000).length, // >12km altitude
-        ...(error ? { error } : {}),
-      };
-    })
-  );
-
-  const hotspotErrors = results
-    .filter(r => r.error)
-    .map(r => ({ region: r.region, error: r.error }));
-
+  // One global state-vector request avoids exhausting anonymous credits with a
+  // burst of overlapping regional requests. Regionalization is deterministic.
+  const response = await getAllFlights();
+  if (response?.error || !Array.isArray(response?.states)) {
+    return {
+      source: 'OpenSky',
+      timestamp: new Date().toISOString(),
+      status: 'unavailable',
+      error: response?.error || 'OpenSky state vectors unavailable',
+      hotspots: [],
+    };
+  }
+  const results = regionalizeStates(response.states);
+  const observedAt = Number.isFinite(Number(response.time))
+    ? new Date(Number(response.time) * 1000).toISOString()
+    : null;
   return {
     source: 'OpenSky',
     timestamp: new Date().toISOString(),
+    observedAt,
+    status: 'active',
+    requestCount: 1,
     hotspots: results,
-    ...(hotspotErrors.length ? {
-      error: hotspotErrors.length === results.length
-        ? `OpenSky unavailable across all hotspots: ${hotspotErrors[0].error}`
-        : `OpenSky unavailable for ${hotspotErrors.length}/${results.length} hotspots`,
-      hotspotErrors,
-    } : {}),
   };
 }
 

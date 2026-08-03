@@ -1,10 +1,11 @@
 // NASA FIRMS — Fire Information for Resource Management System
 // Detects active fires/thermal anomalies globally within 3 hours of satellite pass.
-// Detects military strikes, explosions, wildfires, industrial fires.
+// Detects active fires and thermal anomalies; cause requires independent corroboration.
 
 import '../utils/env.mjs';
 
 const FIRMS_BASE = 'https://firms.modaps.eosdis.nasa.gov/api/area/csv';
+const FIRMS_PRODUCT = 'VIIRS_SNPP_NRT';
 
 // Parse FIRMS CSV response into structured data
 function parseCSV(rawText) {
@@ -25,7 +26,7 @@ async function fetchFires(opts = {}) {
   const {
     west = -180, south = -90, east = 180, north = 90,
     days = 1,
-    source = 'VIIRS_SNPP_NRT',
+    source = FIRMS_PRODUCT,
   } = opts;
 
   const key = process.env.FIRMS_MAP_KEY;
@@ -71,7 +72,67 @@ export function latestFirmsObservationTime(fires = []) {
   return latest ? latest.toISOString() : null;
 }
 
-// Analyze fire detections for potential military/strike activity
+function firmsDetectionKey(fire = {}, product = FIRMS_PRODUCT) {
+  const rawLatitude = String(fire.latitude ?? '').trim();
+  const rawLongitude = String(fire.longitude ?? '').trim();
+  const latitude = Number(rawLatitude);
+  const longitude = Number(rawLongitude);
+  const date = String(fire.acq_date || '');
+  const time = String(fire.acq_time || '').padStart(4, '0');
+  if (!rawLatitude || !rawLongitude || !Number.isFinite(latitude) || !Number.isFinite(longitude)
+    || !/^\d{4}-\d{2}-\d{2}$/.test(date) || !/^\d{4}$/.test(time)) return null;
+  return [
+    product, fire.satellite || '', fire.instrument || '', date, time,
+    latitude.toFixed(5), longitude.toFixed(5),
+  ].join('|');
+}
+
+/** Deduplicate identical satellite observations fetched through overlapping boxes. */
+export function deduplicateFirmsDetections(regionalResults = []) {
+  const unique = new Map();
+  let memberships = 0;
+  let invalidDetections = 0;
+  for (const result of regionalResults) {
+    if (!Array.isArray(result.fires)) continue;
+    for (const fire of result.fires) {
+      memberships += 1;
+      const product = result.product || FIRMS_PRODUCT;
+      const key = firmsDetectionKey(fire, product);
+      if (!key) { invalidDetections += 1; continue; }
+      if (!unique.has(key)) unique.set(key, { ...fire, observationId: key, product, duplicateCopies: 0, regions: new Set() });
+      else unique.get(key).duplicateCopies += 1;
+      unique.get(key).regions.add(result.label);
+    }
+  }
+  const detections = [...unique.values()].map(item => ({ ...item, regions: [...item.regions].sort() }));
+  return {
+    totalDetections: detections.length,
+    observationIds: detections.map(item => item.observationId).sort(),
+    highConfidenceObservationIds: detections.filter(item => item.confidence === 'h' || item.confidence === 'high').map(item => item.observationId).sort(),
+    duplicateMemberships: Math.max(0, memberships - invalidDetections - detections.length),
+    invalidDetections,
+    highConfidence: detections.filter(item => item.confidence === 'h' || item.confidence === 'high').length,
+    nightDetections: detections.filter(item => item.daynight === 'N').length,
+    highIntensity: detections.filter(item => Number(item.frp) > 10).length,
+    observedAt: latestFirmsObservationTime(detections),
+    method: 'product+satellite+instrument+acquisition-time+coordinate-5dp',
+    regionsOverlap: true,
+    detections,
+  };
+}
+
+export function filterFirmsObservationWindow(fires = [], collectedAt = new Date().toISOString()) {
+  const reference = Date.parse(collectedAt);
+  if (!Number.isFinite(reference)) return [];
+  const lower = reference - (24 * 60 * 60 * 1000);
+  const upper = reference + (5 * 60 * 1000);
+  return fires.filter(fire => {
+    const observed = Date.parse(latestFirmsObservationTime([fire]) || '');
+    return Number.isFinite(observed) && observed > lower && observed <= upper;
+  });
+}
+
+// Analyze thermal detections without assigning cause
 function analyzeFires(fires, regionLabel) {
   if (!Array.isArray(fires) || fires.length === 0) {
     return { region: regionLabel, totalDetections: 0, highConfidence: 0, highIntensity: [], summary: 'No detections' };
@@ -80,7 +141,7 @@ function analyzeFires(fires, regionLabel) {
   const highConf = fires.filter(f => f.confidence === 'h' || f.confidence === 'high');
   const nomConf = fires.filter(f => f.confidence === 'n' || f.confidence === 'nominal');
 
-  // High intensity fires (FRP > 10 MW) — potential strikes, industrial fires, large explosions
+  // High-intensity thermal detections (FRP > 10 MW); cause is not established.
   const highIntensity = fires
     .filter(f => parseFloat(f.frp) > 10)
     .map(f => ({
@@ -96,7 +157,7 @@ function analyzeFires(fires, regionLabel) {
     .sort((a, b) => b.frp - a.frp)
     .slice(0, 15);
 
-  // Night detections are more significant (less likely agricultural burning)
+  // Night detections are an observation characteristic, not a cause indicator.
   const nightFires = fires.filter(f => f.daynight === 'N');
 
   return {
@@ -119,40 +180,68 @@ export async function briefing() {
       source: 'NASA FIRMS',
       timestamp: new Date().toISOString(),
       status: 'no_key',
-      message: 'Set FIRMS_MAP_KEY for satellite fire/strike detection. Free at https://firms.modaps.eosdis.nasa.gov/api/area/',
+      message: 'Set FIRMS_MAP_KEY for satellite thermal-anomaly detection. Free at https://firms.modaps.eosdis.nasa.gov/api/area/',
     };
   }
 
-  // Fetch all hotspots in parallel
+  // Fetch two calendar days to cover the API boundary, then deterministically
+  // restrict analytical metrics to the latest rolling 24-hour window.
   const entries = Object.entries(HOTSPOTS);
+  const collectedAt = new Date().toISOString();
   const rawResults = await Promise.all(
     entries.map(async ([key, box]) => {
-      const fires = await fetchFires({ ...box, days: 2 });
-      return { key, label: box.label, fires };
+      const fires = await fetchFires({ ...box, days: 2, source: FIRMS_PRODUCT });
+      return { key, label: box.label, product: FIRMS_PRODUCT, fires };
     })
   );
-
-  const hotspots = rawResults.map(r => {
-    if (r.fires?.error) return { region: r.label, error: r.fires.error };
-    return analyzeFires(r.fires, r.label);
+  const failedRegions = rawResults
+    .filter(result => result.fires?.error)
+    .map(result => ({ key: result.key, region: result.label }));
+  const windowedResults = rawResults.map(result => ({
+    ...result,
+    fires: Array.isArray(result.fires)
+      ? filterFirmsObservationWindow(result.fires, collectedAt)
+      : result.fires,
+  }));
+  const hotspots = windowedResults.map(result => {
+    if (result.fires?.error) return { region: result.label, error: result.fires.error };
+    return analyzeFires(result.fires, result.label);
   });
+  const deduplicatedRaw = deduplicateFirmsDetections(windowedResults);
+  const { detections: _detections, ...deduplicatedMetrics } = deduplicatedRaw;
+  const completeCoverage = failedRegions.length === 0;
+  const deduplicated = {
+    ...deduplicatedMetrics,
+    ...(completeCoverage ? {} : {
+      partialDetections: deduplicatedMetrics.totalDetections,
+      totalDetections: null,
+    }),
+    product: FIRMS_PRODUCT,
+    windowHours: 24,
+    coverage: {
+      complete: completeCoverage,
+      queriedRegions: entries.length,
+      failedRegions,
+    },
+  };
 
   // Generate signals
   const signals = [];
   for (const h of hotspots) {
     if (h.highIntensity?.length > 5) {
-      signals.push(`HIGH INTENSITY FIRES in ${h.region}: ${h.highIntensity.length} detections >10MW FRP`);
+      signals.push(`HIGH-INTENSITY THERMAL ANOMALIES in ${h.region}: ${h.highIntensity.length} displayed above 10MW FRP; cause unverified`);
     }
     if (h.nightDetections > 20) {
-      signals.push(`ELEVATED NIGHT ACTIVITY in ${h.region}: ${h.nightDetections} night detections (potential strikes/combat)`);
+      signals.push(`ELEVATED NIGHT THERMAL ACTIVITY in ${h.region}: ${h.nightDetections} detections; cause unverified`);
     }
   }
 
   return {
     source: 'NASA FIRMS',
-    timestamp: new Date().toISOString(),
-    status: 'active',
+    timestamp: collectedAt,
+    status: completeCoverage ? 'active' : failedRegions.length === entries.length ? 'unavailable' : 'partial',
     hotspots,
+    deduplicated,
     signals,
   };
 }

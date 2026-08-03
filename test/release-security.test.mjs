@@ -20,7 +20,16 @@ describe('release security boundaries', () => {
         const dir = join(root, 'runs', name);
         mkdirSync(dir, { recursive: true });
         writeFileSync(join(root, 'package.json'), JSON.stringify({ secret: 'outside-store' }));
-        writeFileSync(join(dir, '2026-08-02T10-11-22.json'), JSON.stringify({ timestamp: '2026-08-02T10:11:22' }));
+        const artifact = {
+          timestamp: '2026-08-02T10:11:22',
+          generatedAt: '2026-08-02T10:11:22.000Z',
+          schemaVersion: 'moraqeb.generated.v2',
+          en: { title: 'Validated', content: 'Validated', evidence: [{ id: 'E1' }], evidenceStatus: 'validated', citationValidation: { valid: true, citedIds: ['E1'], unsupportedClaims: [], unsupportedIds: [], coverage: { evidenceRequired: 1, supported: 1, rate: 1 } } },
+          ar: { title: 'موثق', content: 'موثق', evidence: [{ id: 'E1' }], evidenceStatus: 'validated', citationValidation: { valid: true, citedIds: ['E1'], unsupportedClaims: [], unsupportedIds: [], coverage: { evidenceRequired: 1, supported: 1, rate: 1 } } },
+          generation: { scheduledFor: '2026-08-02T10:11:22.000Z', promptVersion: 'evidence-v13', jobId: `${name}:test`, snapshotId: 'sweep_test', inputHash: 'a'.repeat(64) },
+          snapshot: { hash: 'a'.repeat(64), timestamp: '2026-08-02T10:11:22.000Z' },
+        };
+        writeFileSync(join(dir, '2026-08-02T10-11-22.json'), JSON.stringify(artifact));
         const store = new Store(dir);
         assert.equal(store.getByTimestamp('../../package.json'), null);
         assert.equal(store.getByTimestamp('2026-08-02T10-11-22').timestamp, '2026-08-02T10:11:22');
@@ -92,14 +101,47 @@ describe('release security boundaries', () => {
     assert.doesNotMatch(html, /brief\.model|gpt[- ]?5\.6[- ]?luna|id=["']provider["']/i);
   });
 
+  it('Blog and Posts keep governance syntax in closed audit details and show only validated archives', async () => {
+    const { readFile } = await import('fs/promises');
+    for (const file of ['blog.html', 'posts.html']) {
+      const html = await readFile(new URL(`../dashboard/public/${file}`, import.meta.url), 'utf8');
+      assert.match(html, /function cleanReadingText/);
+      assert.match(html, /replace\(\/\\\[E\\d\+\\\]\//);
+      assert.match(html, /<details/);
+      assert.match(html, /citationValidation/);
+      assert.match(html, /\.valid === true/);
+      assert.match(html, /min-(?:width|height):44px/);
+      assert.match(html, /prefers-reduced-motion/);
+      assert.match(html, /focus-visible/);
+    }
+  });
+
+  it('uses Segoe UI for Arabic reader interfaces without loading Noto Sans Arabic', async () => {
+    const { readFile } = await import('fs/promises');
+    for (const file of ['executive.html', 'blog.html', 'posts.html']) {
+      const html = await readFile(new URL(`../dashboard/public/${file}`, import.meta.url), 'utf8');
+      assert.match(html, /Segoe UI/);
+      assert.doesNotMatch(html, /Noto(?:\+|\s)Sans(?:\+|\s)Arabic/i);
+      if (file !== 'executive.html') assert.match(html, /html\[dir="rtl"\][^}]*body\{font-family:'Segoe UI'/);
+    }
+  });
+
   it('dashboard does not present unavailable sources or overlapping thermal regions as factual totals', async () => {
     const { readFile } = await import('fs/promises');
     const html = await readFile(new URL('../dashboard/public/jarvis.html', import.meta.url), 'utf8');
+    const injectSource = await readFile(new URL('../dashboard/inject.mjs', import.meta.url), 'utf8');
     assert.doesNotMatch(html, />WARTIME STAGFLATION RISK</);
     assert.doesNotMatch(html, />\$\{t\('dashboard\.highAlert','HIGH ALERT'\)\}</);
     assert.match(html, /airAvailable=D\.airMeta\?\.available!==false/);
     assert.match(html, /conflictAvailable=D\.acled\?\.available!==false/);
-    assert.match(html, /OVERLAPPING REGIONAL ZONES/);
+    assert.match(html, /DEDUPLICATED.*OVERLAPPING ZONES/);
+    assert.doesNotMatch(html, /D\.thermal\.reduce\(\(s,t\)=>s\+t\.hc/);
+    assert.match(html, /D\.thermalMeta\?\.highConfidence/);
+    assert.match(injectSource, /const openSkyObservedAt\s*=\s*openSkyUsable\s*\?\s*\(data\.sources\.OpenSky\?\.observedAt/);
+    assert.match(injectSource, /filter\(h\s*=>\s*!h\.error/);
+    assert.doesNotMatch(injectSource, /V2\.thermal\.reduce\(\(s, t\) => s \+ t\.det/);
+    assert.doesNotMatch(injectSource, /Satellite Confirms Conflict Intensity/);
+    assert.match(injectSource, /thermalMeta\?\.uniqueDetections/);
   });
 
   it('generation jobs hash and verify synthesized snapshot bytes', async () => {

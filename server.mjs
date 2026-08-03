@@ -624,7 +624,7 @@ function attachGenerationMetadata(artifact, job, generationData) {
     ...(artifact.generation || {}),
     provider: llmProvider?.name || null,
     model: llmProvider?.model || config.llm?.model || null,
-    promptVersion: 'evidence-v10',
+    promptVersion: 'evidence-v13',
     ...(job ? {
       jobId: job.id, scheduledFor: job.payload?.scheduledFor || null,
       snapshotId: job.payload?.snapshotId || null,
@@ -713,7 +713,7 @@ async function runPostCycle(job = null) {
   // Skip if the queued snapshot data has not changed since the last successful post.
   const generationData = dataForGenerationJob(job);
   const dataHash = job?.payload?.inputHash || createHash('sha256').update(JSON.stringify(generationData)).digest('hex');
-  if (job && latest?.generation?.inputHash === dataHash && latest?.generation?.promptVersion === 'evidence-v10') {
+  if (job && latest?.generation?.inputHash === dataHash && latest?.generation?.promptVersion === 'evidence-v13') {
     return { skipped: true, reason: 'unchanged-data', timestamp: latest.timestamp };
   }
   if (dataHash === lastPostDataHash) {
@@ -799,7 +799,7 @@ function scheduleGenerationJobs(now = new Date()) {
   const blogBucket = Math.floor(nowMs / blogIntervalMs);
   const dayBucket = nowIso.substring(0, 10);
   const payload = { dataTimestamp, snapshotId, inputHash };
-  const generationVersion = 'evidence-v10';
+  const generationVersion = 'evidence-v13';
   const queued = [];
 
   queued.push(generationQueue.enqueue({

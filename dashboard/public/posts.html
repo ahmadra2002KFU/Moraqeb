@@ -16,7 +16,7 @@
 
 :root{
   --bg:#0a0f14;--bg-surface:#111820;--bg-elevated:#182028;
-  --text:#e0e8e4;--text-secondary:#8a9a94;--text-muted:#5a6a64;
+  --text:#e0e8e4;--text-secondary:#aebbb6;--text-muted:#9aa8a3;
   --accent:#64f0c8;--accent-dim:rgba(100,240,200,0.12);--accent-border:rgba(100,240,200,0.2);
   --border:rgba(255,255,255,0.08);--border-strong:rgba(255,255,255,0.14);
   --mono:'IBM Plex Mono',monospace;--sans:'Space Grotesk',sans-serif;
@@ -58,7 +58,7 @@ a:hover{text-decoration:underline}
 .header-nav a{
   font-family:var(--mono);font-size:11px;font-weight:500;
   letter-spacing:.08em;text-transform:uppercase;
-  padding:6px 14px;border:1px solid transparent;
+  padding:6px 14px;border:1px solid transparent;min-height:44px;display:inline-flex;align-items:center;
   color:var(--text-secondary);transition:all .2s;text-decoration:none;
 }
 .header-nav a:hover{color:var(--text);border-color:var(--border-strong)}
@@ -67,14 +67,14 @@ a:hover{text-decoration:underline}
 .lang-toggle{display:flex;border:1px solid var(--border-strong);overflow:hidden}
 .lang-btn{
   font-family:var(--mono);font-size:11px;font-weight:600;
-  letter-spacing:.06em;padding:5px 12px;
+  letter-spacing:.06em;padding:5px 12px;min-width:44px;min-height:44px;
   background:transparent;color:var(--text-secondary);
   border:none;cursor:pointer;transition:all .2s;
 }
 .lang-btn.active{background:var(--accent);color:#020408}
 html.light .lang-btn.active{background:var(--accent);color:#fff}
 .theme-btn{
-  width:34px;height:34px;border:1px solid var(--border-strong);
+  width:44px;height:44px;border:1px solid var(--border-strong);
   background:transparent;color:var(--text-secondary);
   cursor:pointer;font-size:16px;display:flex;
   align-items:center;justify-content:center;transition:all .2s;border-radius:0;
@@ -103,6 +103,10 @@ html.light .lang-btn.active{background:var(--accent);color:#fff}
   font-family:var(--mono);font-size:11px;color:var(--text-secondary);letter-spacing:.04em;
   margin-inline-start:auto;
 }
+.page-title{font-size:28px;line-height:1.2;margin:0 0 18px}
+.feed-controls{display:grid;grid-template-columns:1.4fr repeat(3,minmax(130px,.7fr));gap:10px;margin:0 0 22px}
+.feed-controls input,.feed-controls select{min-height:44px;width:100%;border:1px solid var(--border-strong);background:var(--bg-surface);color:var(--text);padding:8px 10px;font:12px var(--mono)}
+.load-more{display:block;min-height:44px;margin:20px auto 0;padding:8px 20px;border:1px solid var(--accent-border);background:var(--accent-dim);color:var(--accent);font:600 12px var(--mono);cursor:pointer}
 
 /* Post cards */
 .post-feed{display:flex;flex-direction:column;gap:16px}
@@ -125,8 +129,11 @@ html.light .lang-btn.active{background:var(--accent);color:#fff}
 .post-card-content strong{font-weight:600;color:var(--accent)}
 html.light .post-card-content strong{color:var(--accent)}
 .post-evidence{margin-top:12px;padding-top:10px;border-top:1px solid var(--border);font-family:var(--mono);font-size:10px;color:var(--text-muted)}
-.post-evidence a{display:block;margin-top:5px;color:var(--accent);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.claim-tag{font-family:var(--mono);font-size:9px;color:var(--accent);border:1px solid var(--accent-border);padding:1px 4px}
+.post-evidence a{display:block;margin-top:5px;color:var(--accent);white-space:normal;overflow-wrap:anywhere}
+.post-evidence summary{cursor:pointer;min-height:44px;display:flex;align-items:center}
+.claim-tag{font-family:var(--mono);font-size:9px;color:var(--accent);border:1px solid var(--accent-border);padding:3px 6px;display:inline-block;margin-bottom:8px}
+a:focus-visible,button:focus-visible,summary:focus-visible{outline:3px solid var(--accent);outline-offset:3px}
+@media(prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;scroll-behavior:auto!important;transition-duration:.01ms!important}}
 
 /* States */
 .state-card{
@@ -151,7 +158,7 @@ html.light .post-card-content strong{color:var(--accent)}
 }
 
 /* RTL */
-html[dir="rtl"]{font-family:'Space Grotesk','Segoe UI',Tahoma,sans-serif}
+html[dir="rtl"],html[dir="rtl"] body{font-family:'Segoe UI',Tahoma,Arial,sans-serif}
 html[dir="rtl"] .post-card-content{line-height:1.9;font-size:17px}
 html[dir="rtl"] .header-inner{direction:rtl}
 html[dir="rtl"] .header-nav{direction:ltr}
@@ -160,11 +167,14 @@ html[dir="rtl"] .site-footer{direction:rtl;unicode-bidi:plaintext}
 
 /* Responsive */
 @media(max-width:600px){
-  .header-nav{display:none}
+  .header-nav{display:flex;width:100%;overflow-x:auto;flex-wrap:nowrap;order:3;padding-bottom:4px}
+  .header-nav a{flex:0 0 auto}
   .header-brand{font-size:11px}
   .page-container{padding:16px 16px 48px}
   .post-card{padding:16px 18px}
   .post-card-content{font-size:15px}
+  .feed-controls{grid-template-columns:1fr 1fr}
+  .feed-controls input{grid-column:1/-1}
 }
 </style>
 </head>
@@ -172,14 +182,14 @@ html[dir="rtl"] .site-footer{direction:rtl;unicode-bidi:plaintext}
 
 <header class="site-header">
   <div class="header-inner">
-    <div class="header-brand"><img src="/logo-header.png" alt="Moraqeb" style="height:26px;vertical-align:middle;margin-right:10px">INTEL POSTS</div>
+    <div class="header-brand"><img src="/logo-header.png" alt="Moraqeb" style="height:26px;vertical-align:middle;margin-right:10px"><span data-en="INTEL POSTS" data-ar="تحديثات استخباراتية">INTEL POSTS</span></div>
     <nav class="header-nav">
-      <a href="/">Dashboard</a>
-      <a href="/chat">Chat</a>
-      <a href="/voice">Voice</a>
-      <a href="/blog">Blog</a>
-      <a href="/posts" class="active">Posts</a>
-      <a href="/executive">Executive</a>
+      <a href="/" data-en="Dashboard" data-ar="لوحة المتابعة">Dashboard</a>
+      <a href="/chat" data-en="Chat" data-ar="المحادثة">Chat</a>
+      <a href="/voice" data-en="Voice" data-ar="الصوت">Voice</a>
+      <a href="/blog" data-en="Blog" data-ar="الإحاطة">Blog</a>
+      <a href="/posts" class="active" data-en="Posts" data-ar="التحديثات">Posts</a>
+      <a href="/executive" data-en="Executive" data-ar="التنفيذي">Executive</a>
     </nav>
     <div class="header-controls">
       <div class="lang-toggle">
@@ -194,37 +204,61 @@ html[dir="rtl"] .site-footer{direction:rtl;unicode-bidi:plaintext}
   </div>
 </header>
 
-<div class="page-container">
+<main class="page-container">
+  <h1 class="page-title" data-en="Intelligence Updates" data-ar="التحديثات الاستخباراتية">Intelligence Updates</h1>
   <div class="status-bar">
-    <span class="status-badge">LIVE FEED</span>
+    <span class="status-badge" data-en="LIVE FEED" data-ar="تحديث مباشر">LIVE FEED</span>
     <span class="status-countdown" id="postCountdown">Loading...</span>
     <span class="status-count" id="postCount"></span>
   </div>
 
+  <div class="feed-controls" aria-label="Post filters">
+    <input id="postSearch" type="search" placeholder="Search updates" aria-label="Search updates" oninput="resetAndRender()">
+    <select id="topicFilter" aria-label="Topic" onchange="resetAndRender()">
+      <option value="all" data-en="All topics" data-ar="كل الموضوعات">All topics</option>
+      <option value="security" data-en="Security" data-ar="الأمن">Security</option>
+      <option value="markets" data-en="Markets" data-ar="الأسواق">Markets</option>
+      <option value="infrastructure" data-en="Infrastructure" data-ar="البنية التحتية">Infrastructure</option>
+      <option value="health" data-en="Health" data-ar="الصحة">Health</option>
+    </select>
+    <select id="qualityFilter" aria-label="Evidence quality" onchange="resetAndRender()">
+      <option value="all" data-en="All evidence levels" data-ar="كل مستويات الأدلة">All evidence levels</option>
+      <option value="corroborated" data-en="Multi-source" data-ar="متعدد المصادر">Multi-source</option>
+      <option value="single-source" data-en="Single source" data-ar="مصدر واحد">Single source</option>
+    </select>
+    <select id="timeFilter" aria-label="Time range" onchange="resetAndRender()">
+      <option value="6" data-en="Last 6 hours" data-ar="آخر 6 ساعات">Last 6 hours</option>
+      <option value="24" selected data-en="Last 24 hours" data-ar="آخر 24 ساعة">Last 24 hours</option>
+      <option value="all" data-en="All available" data-ar="كل المتاح">All available</option>
+    </select>
+  </div>
+
   <div id="loadingState" class="state-card">
     <div style="font-size:48px;margin-bottom:16px;opacity:.4"><span class="loading-pulse"></span></div>
-    <h2>Loading Intelligence Posts...</h2>
-    <p>Fetching the latest updates from Moraqeb intelligence engine.</p>
+    <h2 data-en="Loading Intelligence Posts..." data-ar="جار تحميل التحديثات الاستخباراتية...">Loading Intelligence Posts...</h2>
+    <p data-en="Fetching the latest validated updates." data-ar="جار جلب أحدث التحديثات المتحققة.">Fetching the latest validated updates.</p>
   </div>
 
   <div id="emptyState" class="state-card" style="display:none">
     <div style="font-size:48px;margin-bottom:16px;opacity:.4">&#9638;</div>
-    <h2>No Posts Yet</h2>
-    <p>The first intelligence post will appear after the next data sweep. Updates arrive every 15 minutes.</p>
+    <h2 data-en="No Validated Posts Yet" data-ar="لا توجد تحديثات متحققة بعد">No Validated Posts Yet</h2>
+    <p data-en="A post appears only after its evidence and bilingual checks pass." data-ar="لا يظهر التحديث إلا بعد اجتياز فحص الأدلة والتطابق بين اللغتين.">A post appears only after its evidence and bilingual checks pass.</p>
   </div>
 
   <div class="post-feed" id="postFeed" style="display:none"></div>
-</div>
+  <button type="button" class="load-more" id="loadMore" style="display:none" onclick="loadMorePosts()" data-en="Load 10 more" data-ar="عرض 10 تحديثات إضافية">Load 10 more</button>
+</main>
 
 <footer class="site-footer">
-  <div>Powered by Moraqeb (&rlm;&#1605;&#1585;&#1575;&#1602;&#1576;&lrm;) &mdash; Updated every 15 minutes from 27+ OSINT sources</div>
-  <div style="margin-top:8px;opacity:0.7">AI-generated intelligence updates based on publicly available open-source data. Not verified intelligence or financial advice.</div>
+  <div data-en="Powered by Moraqeb — updated from public OSINT sources" data-ar="مدعوم من مراقب — تحديثات من مصادر استخبارات مفتوحة">Powered by Moraqeb — updated from public OSINT sources</div>
+  <div style="margin-top:8px;opacity:0.7" data-en="AI-assisted decision support. Verify critical decisions against primary sources." data-ar="دعم قرار بمساعدة الذكاء الاصطناعي. تحقق من القرارات الحساسة بالرجوع إلى المصادر الأولية.">AI-assisted decision support. Verify critical decisions against primary sources.</div>
 </footer>
 
 <script>
 var currentLang = 'en';
 var postsData = [];
 var countdownInterval = null;
+var visibleCount = 10;
 
 // Theme
 function toggleTheme() {
@@ -255,6 +289,15 @@ function setLang(lang) {
     document.documentElement.removeAttribute('dir');
     document.documentElement.setAttribute('lang', 'en');
   }
+  document.querySelectorAll('[data-en][data-ar]').forEach(function(el) {
+    el.textContent = el.getAttribute(lang === 'ar' ? 'data-ar' : 'data-en');
+  });
+  var theme = document.querySelector('.theme-btn');
+  theme.setAttribute('aria-label', lang === 'ar' ? 'تبديل نمط الألوان' : 'Toggle light/dark theme');
+  var search = document.getElementById('postSearch');
+  search.placeholder = lang === 'ar' ? 'ابحث في التحديثات' : 'Search updates';
+  search.setAttribute('aria-label', search.placeholder);
+  document.querySelector('.feed-controls').setAttribute('aria-label', lang === 'ar' ? 'مرشحات التحديثات' : 'Post filters');
   renderPosts();
 }
 function initLang() {
@@ -268,32 +311,84 @@ function escapeHtml(str) {
   return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
-// Render bold markdown (**text**) to <strong>
+function safePublicUrl(value) {
+  try {
+    var parsed = new URL(String(value || ''), window.location.origin);
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return null;
+    return parsed.href.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/'/g, '&#39;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  } catch (_) { return null; }
+}
+function cleanReadingText(value) {
+  return String(value || '')
+    .replace(/\[E\d+\]/g, '')
+    .replace(/\[(?:OBSERVED|INFERENCE)\]\s*/g, '')
+    .replace(/\[UNSUPPORTED\]\s*/g, currentLang === 'ar' ? 'يحتاج إلى تحقق: ' : 'Needs verification: ')
+    .replace(/[ \t]+([.!?؟])/g, '$1');
+}
+
+// Render lightweight emphasis while keeping audit syntax out of the reading flow.
 function renderInline(text) {
-  return escapeHtml(text)
+  return escapeHtml(cleanReadingText(text))
     .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
-    .replace(/\[(OBSERVED|INFERENCE)\]/g, '<span class="claim-tag">$1</span>')
-    .replace(/\[(E\d+)\]/g, '<strong>[$1]</strong>');
+    .replace(/\n/g, '<br>');
 }
 
 function renderEvidence(evidence, status) {
-  if (!evidence || !evidence.length) return '<div class="post-evidence">UNCITED · no valid evidence references</div>';
-  var warning = status === 'partial' ? 'PARTIAL COVERAGE · [UNSUPPORTED] claims marked · ' : 'EVIDENCE · ';
-  return '<div class="post-evidence">' + warning + evidence.length + evidence.map(function(item) {
-    var label = escapeHtml(item.id + ' · ' + item.source + ' · ' + item.title);
-    var detail = escapeHtml((item.stale ? 'STALE · ' : '') + (item.timestamp || 'observation time unknown') + ' · confidence ' + (item.confidence || 'unknown'));
-    return item.url ? '<a href="' + escapeHtml(item.url) + '" target="_blank" rel="noopener noreferrer">' + label + '<span>' + detail + '</span></a>' : '<div>' + label + '<span>' + detail + '</span></div>';
-  }).join('') + '</div>';
+  var ar = currentLang === 'ar';
+  if (!evidence || !evidence.length) return '<div class="post-evidence">' + (ar ? 'لا يتوفر مسار أدلة صالح' : 'No valid evidence trail') + '</div>';
+  var validated = status === 'validated' || status === 'supported';
+  var label = validated ? (ar ? 'مسار أدلة متحقق' : 'Validated evidence trail') : (ar ? 'يحتاج إلى مراجعة' : 'Needs review');
+  var rows = evidence.map(function(item) {
+    var title = escapeHtml(item.id + ' · ' + item.source + ' · ' + item.title);
+    var freshness = item.stale ? (ar ? 'قديم' : 'STALE') : (item.freshness || 'unknown').toUpperCase();
+    var detail = escapeHtml(freshness.toUpperCase() + ' · ' + (item.timestamp || (ar ? 'وقت الرصد غير معروف' : 'observation time unknown')) + ' · ' + (item.confidence || 'unknown'));
+    var safe = safePublicUrl(item.url);
+    return safe ? '<a href="' + safe + '" target="_blank" rel="noopener noreferrer">' + title + '<span>' + detail + '</span></a>' : '<div>' + title + '<span>' + detail + '</span></div>';
+  }).join('');
+  return '<details class="post-evidence"><summary>' + label + ' · ' + evidence.length + '</summary><div>' + rows + '</div></details>';
 }
+
+function inferTopic(post) {
+  var text = JSON.stringify([post.en && post.en.content, post.ar && post.ar.content]).toLowerCase();
+  if (/market|oil|price|yield|inflation|stock|currency|سوق|نفط|سعر|تضخم/.test(text)) return 'markets';
+  if (/health|disease|outbreak|virus|radiation|صحة|مرض|وباء|إشعاع/.test(text)) return 'health';
+  if (/port|shipping|power|telecom|infrastructure|supply chain|ميناء|شحن|طاقة|اتصالات|بنية/.test(text)) return 'infrastructure';
+  if (/military|conflict|security|attack|missile|war|أمن|عسكري|صراع|هجوم|حرب/.test(text)) return 'security';
+  return 'general';
+}
+
+function resetAndRender() { visibleCount = 10; renderPosts(); }
+function loadMorePosts() { visibleCount += 10; renderPosts(); }
 
 // Render posts feed
 function renderPosts() {
   var feed = document.getElementById('postFeed');
   var loading = document.getElementById('loadingState');
   var empty = document.getElementById('emptyState');
+  var topic = document.getElementById('topicFilter').value;
+  var qualityFilter = document.getElementById('qualityFilter').value;
+  var timeFilter = document.getElementById('timeFilter').value;
+  var search = document.getElementById('postSearch').value.trim().toLowerCase();
+  var validatedPosts = postsData.filter(function(post) {
+    return post.en && post.ar && post.en.citationValidation && post.ar.citationValidation
+      && post.en.citationValidation.valid === true && post.ar.citationValidation.valid === true;
+  });
+  var filteredPosts = validatedPosts.filter(function(post) {
+    var postTopic = inferTopic(post);
+    var quality = (post.evidenceQuality && post.evidenceQuality.level) || 'unverified';
+    var ageHours = (Date.now() - new Date(post.timestamp || 0).getTime()) / 3600000;
+    var haystack = JSON.stringify([post.en && post.en.content, post.ar && post.ar.content, post.en && post.en.title, post.ar && post.ar.title]).toLowerCase();
+    return (topic === 'all' || topic === postTopic)
+      && (qualityFilter === 'all' || qualityFilter === quality)
+      && (timeFilter === 'all' || ageHours <= Number(timeFilter))
+      && (!search || haystack.includes(search));
+  });
+  var visiblePosts = filteredPosts.slice(0, visibleCount);
+  var loadMore = document.getElementById('loadMore');
 
-  if (!postsData.length) {
+  if (!visiblePosts.length) {
     feed.style.display = 'none';
+    loadMore.style.display = 'none';
     loading.style.display = 'none';
     empty.style.display = '';
     document.getElementById('postCount').textContent = '';
@@ -303,27 +398,36 @@ function renderPosts() {
   loading.style.display = 'none';
   empty.style.display = 'none';
   feed.style.display = '';
+  loadMore.style.display = filteredPosts.length > visiblePosts.length ? '' : 'none';
 
-  document.getElementById('postCount').textContent = postsData.length + (postsData.length === 1 ? ' post' : ' posts');
+  document.getElementById('postCount').textContent = currentLang === 'ar'
+    ? 'عرض ' + visiblePosts.length + ' من ' + filteredPosts.length + ' تحديثات متحققة'
+    : 'Showing ' + visiblePosts.length + ' of ' + filteredPosts.length + ' validated posts';
 
-  feed.innerHTML = postsData.map(function(post) {
+  feed.innerHTML = visiblePosts.map(function(post) {
     var data = currentLang === 'ar' ? post.ar : post.en;
     var content = data ? (data.content || '') : '';
     var ts = post.timestamp ? new Date(post.timestamp) : new Date();
-    var timeStr = ts.toLocaleString('en-US', {
+    var timeStr = ts.toLocaleString(currentLang === 'ar' ? 'ar-SA' : 'en-US', {
       month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
     });
-    return '<div class="post-card">' +
-      '<div class="post-card-time">' + timeStr + '</div>' +
+    var quality = post.evidenceQuality || {};
+    var qualityLabel = quality.level === 'corroborated' ? (currentLang === 'ar' ? 'متعدد المصادر' : 'Multi-source')
+      : quality.level === 'single-source' ? (currentLang === 'ar' ? 'مصدر مستقل واحد' : 'Single source')
+      : (currentLang === 'ar' ? 'تأكيد محدود' : 'Limited corroboration');
+    var topicKey = inferTopic(post);
+    var topicLabels = currentLang === 'ar'
+      ? { security: 'الأمن', markets: 'الأسواق', infrastructure: 'البنية التحتية', health: 'الصحة', general: 'عام' }
+      : { security: 'Security', markets: 'Markets', infrastructure: 'Infrastructure', health: 'Health', general: 'General' };
+    return '<article class="post-card">' +
+      '<time class="post-card-time" datetime="' + escapeHtml(ts.toISOString()) + '">' + timeStr + '</time>' +
+      '<div><span class="claim-tag">' + escapeHtml(topicLabels[topicKey]) + '</span> <span class="claim-tag">' + qualityLabel + '</span></div>' +
       '<div class="post-card-content">' + renderInline(content) + '</div>' +
       renderEvidence((data && data.evidence) || post.evidence || [], data && data.evidenceStatus) +
-    '</div>';
+    '</article>';
   }).join('');
 
-  // Start countdown from most recent post
-  if (postsData[0] && postsData[0].timestamp) {
-    startCountdown(new Date(postsData[0].timestamp));
-  }
+  if (filteredPosts[0] && filteredPosts[0].timestamp) startCountdown(new Date(filteredPosts[0].timestamp));
 }
 
 // Countdown (15-minute cycle)
@@ -333,10 +437,10 @@ function startCountdown(lastUpdate) {
   function tick() {
     var nextUpdate = new Date(lastUpdate.getTime() + 15 * 60 * 1000);
     var diff = nextUpdate - Date.now();
-    if (diff <= 0) { el.textContent = 'Update expected soon...'; return; }
+    if (diff <= 0) { el.textContent = currentLang === 'ar' ? 'التحديث التالي متوقع قريبا...' : 'Update expected soon...'; return; }
     var mins = Math.floor(diff / 60000);
     var secs = Math.floor((diff % 60000) / 1000);
-    el.textContent = 'Next post in ' + mins + 'm ' + secs + 's';
+    el.textContent = currentLang === 'ar' ? 'التحديث التالي خلال ' + mins + ' د ' + secs + ' ث' : 'Next post in ' + mins + 'm ' + secs + 's';
   }
   tick();
   countdownInterval = setInterval(tick, 1000);

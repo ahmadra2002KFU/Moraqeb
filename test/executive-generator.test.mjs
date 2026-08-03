@@ -23,8 +23,8 @@ describe('generateExecutiveBrief', () => {
         return { text: JSON.stringify({
           title: ar ? 'الإحاطة التنفيذية' : 'Executive Brief',
           riskLevel: 'HIGH', summary: ar ? `تغير مادي مهم وموثق في المشهد الحالي [${id}]` : `Major verified event [${id}]`,
-          developments: [{ title: ar ? 'تطور مهم' : 'Event', whyItMatters: ar ? 'له أثر مباشر على القرار' : 'Impact', businessImpact: ar ? 'مخاطر على الأعمال' : 'Risk', action: ar ? 'المراقبة والتحقق المستمر' : 'Monitor', confidence: 'HIGH', citations: [id] }],
-          actions: [ar ? 'المراقبة والتحقق المستمر' : 'Monitor'], uncertainties: [ar ? 'لا يزال التحقق مستمرا' : 'Verification'],
+          developments: [{ title: ar ? 'تطور مهم' : 'Event', whyItMatters: ar ? 'قد يؤثر ذلك على القرار' : 'This may affect decisions', businessImpact: ar ? 'قد ينشئ ذلك مخاطر على الأعمال' : 'This may create operating risk', action: ar ? 'راقب الإشارات الموثقة' : 'Monitor verified signals', confidence: 'HIGH', citations: [id] }],
+          actions: [ar ? 'راقب الإشارات الموثقة' : 'Monitor verified signals'], uncertainties: [ar ? 'لا يزال التحقق غير مكتمل' : 'Verification remains incomplete'],
         }), usage: { inputTokens: 10, outputTokens: 5 }, model: 'mock-model' };
       },
     };
@@ -34,6 +34,8 @@ describe('generateExecutiveBrief', () => {
     assert.equal(result.ar.title, 'الإحاطة التنفيذية');
     assert.equal(result.en.evidence[0].url, 'https://example.com/event');
     assert.deepEqual(result.en.developments[0].citations, [result.en.evidence[0].id]);
+    assert.equal(result.en.developments[0].confidence, 'MEDIUM');
+    assert.equal(result.ar.developments[0].confidence, 'MEDIUM');
     assert.doesNotMatch(result.en.summary, /\[UNSUPPORTED\]/);
     assert.deepEqual(result.tokenUsage, { inputTokens: 20, outputTokens: 10 });
     assert.match(prompts[1], /Translate text values only/);
@@ -51,7 +53,7 @@ describe('generateExecutiveBrief', () => {
         title: calls === 1 ? 'Canonical brief' : 'الإحاطة العربية',
         riskLevel: calls === 1 ? 'HIGH' : 'LOW',
         summary: calls === 1 ? `Major verified event [${id}]` : `تطور مهم موثق في المشهد الحالي [${id}]`,
-        developments: [{ title: calls === 1 ? 'Event' : 'تطور مهم', whyItMatters: calls === 1 ? 'Direct business impact' : 'أثر مباشر على الأعمال', businessImpact: calls === 1 ? 'Material operating risk' : 'مخاطر تشغيلية جوهرية', action: calls === 1 ? 'Monitor verified signals' : 'راقب الإشارات الموثقة', confidence: 'HIGH', citations: [id] }],
+        developments: [{ title: calls === 1 ? 'Event' : 'تطور مهم', whyItMatters: calls === 1 ? 'This may affect decisions' : 'قد يؤثر ذلك على القرارات', businessImpact: calls === 1 ? 'This may create operating risk' : 'قد ينشئ ذلك مخاطر تشغيلية', action: calls === 1 ? 'Monitor verified signals' : 'راقب الإشارات الموثقة', confidence: 'HIGH', citations: [id] }],
         actions: [calls === 1 ? 'Monitor verified signals' : 'راقب الإشارات الموثقة'],
         uncertainties: [calls === 1 ? 'Verification remains incomplete' : 'لا يزال التحقق غير مكتمل'],
       }) };
@@ -62,7 +64,7 @@ describe('generateExecutiveBrief', () => {
   it('rejects invalid risk levels and non-Arabic output', async () => {
     const provider = { name: 'mock', model: 'mock', async complete(systemPrompt) {
       const id = systemPrompt.match(/\[(E\d+)\]/)?.[1];
-      return { text: JSON.stringify({ title: 'English only', riskLevel: 'NONSENSE', summary: `Fact [${id}]`, developments: [{ title: 'Event', whyItMatters: 'Impact', businessImpact: 'Risk', action: 'Monitor', confidence: 'HIGH', citations: [id] }], actions: [], uncertainties: [] }) };
+      return { text: JSON.stringify({ title: 'English only', riskLevel: 'NONSENSE', summary: `Fact [${id}]`, developments: [{ title: 'Event', whyItMatters: 'This may affect decisions', businessImpact: 'This may create risk', action: 'Monitor', confidence: 'HIGH', citations: [id] }], actions: [], uncertainties: [] }) };
     } };
     await assert.rejects(generateExecutiveBrief(provider, data, delta), /risk level|Arabic/);
   });

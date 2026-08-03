@@ -19,4 +19,22 @@ describe('delta correctness', () => {
     const current = { ...base, meta: { timestamp: '2026-08-02T12:00:00Z' }, tg: { urgent: [{ text }] } };
     assert.equal(computeDelta(current, previous).signals.new.length, 0);
   });
+
+  it('uses set-based FIRMS changes and never treats rolling-window expiry as de-escalation', () => {
+    const thermalMeta = ids => ({
+      available: true, stale: false, product: 'VIIRS_SNPP_NRT', windowHours: 24,
+      coverage: { complete: true }, observationIds: ids, highConfidenceObservationIds: [],
+    });
+    const previousIds = Array.from({ length: 40 }, (_, index) => `old-${index}`);
+    const previous = { ...base, thermalMeta: thermalMeta(previousIds) };
+    const belowThreshold = { ...base, thermalMeta: thermalMeta([...previousIds.slice(10), ...Array.from({ length: 24 }, (_, index) => `new-${index}`)]) };
+    const quiet = computeDelta(belowThreshold, previous);
+    assert.equal(Object.values(quiet.signals).flat().some(change => change.key === 'thermal_activity_update' && typeof change === 'object'), false);
+
+    const materialIds = [...previousIds.slice(10), ...Array.from({ length: 25 }, (_, index) => `new-${index}`)];
+    const material = computeDelta({ ...base, thermalMeta: thermalMeta(materialIds) }, previous);
+    const thermal = material.signals.new.find(change => change.key === 'thermal_activity_update');
+    assert.equal(thermal.newlyObserved, 25);
+    assert.equal(material.signals.deescalated.some(change => change.key === 'thermal_activity_update'), false);
+  });
 });

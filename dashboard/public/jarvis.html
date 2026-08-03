@@ -624,7 +624,7 @@ function renderLeftRail(){
   const conflictFatal=conflictAvailable?(D.acled?.totalFatalities||0):null;
   const layers=[
     {name:t('layers.airActivity','Air Activity'),count:totalAir,dot:'air',sub:airAvailable?`${D.air.length} ${t('layers.theaters','theaters')}`:String(D.airMeta?.status||unavailable).toUpperCase()},
-    {name:t('layers.thermalSpikes','Thermal Coverage'),count:D.thermal.length,dot:'thermal',sub:'OVERLAPPING REGIONAL ZONES'},
+    {name:t('layers.thermalSpikes','Thermal Detections'),count:D.thermalMeta?.available!==false&&D.thermalMeta?.uniqueDetections!=null?D.thermalMeta.uniqueDetections.toLocaleString():unavailable,dot:'thermal',sub:D.thermalMeta?.uniqueDetections!=null?`DEDUPLICATED · ${D.thermal.length} OVERLAPPING ZONES`:String(D.thermalMeta?.status||unavailable).toUpperCase()},
     {name:t('layers.sdrCoverage','SDR Coverage'),count:D.sdr.total,dot:'sdr',sub:`${D.sdr.online} ${t('layers.online','online')}`},
     {name:t('layers.maritimeWatch','Maritime Watch'),count:D.chokepoints.length,dot:'maritime',sub:t('layers.chokepoints','chokepoints')},
     {name:t('layers.nuclearSites','Nuclear Sites'),count:D.nuke.length,dot:'nuke',sub:t('layers.monitors','monitors')},
@@ -1491,14 +1491,14 @@ function renderLower(){
 // === RIGHT RAIL ===
 function renderRight(){
   const mobile = isMobileLayout();
-  // CROSS-SOURCE SIGNALS — moved from lower grid to right rail
+  // NASA FIRMS THERMAL SIGNALS — moved from lower grid to right rail
   const signals=D.tSignals.slice(0,6).map((s,i)=>`<div class="signal-row"><strong>Signal ${i+1}</strong><p>${s}</p></div>`).join('');
 
   // OSINT TICKER — Telegram + WHO as flowing cards
   const signalMetrics=[
     {l:'Incident Tempo',v:D.tg.urgent.length,p:70},
     {l:'Air Theaters',v:D.air.length,p:60},
-    {l:'Thermal Spikes',v:D.thermal.reduce((s,t)=>s+t.hc,0),p:80},
+    {l:'Thermal Spikes',v:D.thermalMeta?.highConfidence ?? 'N/A',p:80},
     {l:'SDR Nodes',v:D.sdr.total,p:92},
     {l:'Chokepoints',v:D.chokepoints.length,p:50},
     {l:'WHO Alerts',v:D.who.length,p:40}
@@ -1530,7 +1530,7 @@ function renderRight(){
 
   document.getElementById('rightRail').innerHTML=`
     <div class="g-panel right-signals">
-      <div class="sec-head"><h3>${t('panels.crossSourceSignals','Cross-Source Signals')}</h3><span class="badge">${t('badges.worldview','WORLDVIEW')}</span></div>
+      <div class="sec-head"><h3>Thermal Anomaly Signals</h3><span class="badge">NASA FIRMS</span></div>
       ${signals}
     </div>
     ${mobile ? '' : buildOsintPanel('right-osint', 260)}

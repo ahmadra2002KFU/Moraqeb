@@ -7,7 +7,7 @@
   <link rel="icon" href="/favicon.ico">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Noto+Sans+Arabic:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
   <style>
     * { box-sizing: border-box; }
     [hidden] { display: none !important; }
@@ -28,7 +28,7 @@
       --info: #71b9e6;
       --mono: 'IBM Plex Mono', monospace;
       --sans: 'Space Grotesk', sans-serif;
-      --arabic: 'Noto Sans Arabic', sans-serif;
+      --arabic: 'Segoe UI', Tahoma, Arial, sans-serif;
     }
 
     html { background: var(--bg); color-scheme: dark; }
@@ -404,7 +404,7 @@
         actions: 'Decisions and actions', uncertainties: 'Key uncertainties', changes: 'What changed', evidence: 'Supporting evidence',
         evidenceCount: function(n) { return n + ' sources'; }, partial: 'Evidence gaps identified', validated: 'Evidence-backed brief',
         observed: 'Observed', assessment: 'Assessment', gap: 'Needs verification', why: 'Why it matters', impact: 'Business impact', action: 'Recommended action',
-        confidence: 'confidence', total: 'Total', critical: 'Critical', fresh: 'New', escalated: 'Escalated', deescalated: 'De-escalated',
+        confidence: 'confidence', corroborated: 'multi-source', singleSource: 'single-source', unverified: 'limited corroboration', total: 'Total', critical: 'Critical', fresh: 'New', escalated: 'Escalated', deescalated: 'De-escalated',
         noDevelopments: 'No priority developments generated.', noItems: 'No items available.', noChanges: 'No material changes crossed the configured thresholds.',
         noEvidence: 'No cited evidence is available.', coverage: 'Some claims require further verification. Review the supporting sources before acting.',
         unknownTime: 'observation time unknown', stale: 'STALE', loadError: 'Unable to load executive intelligence.', waiting: 'Executive brief is being prepared.'
@@ -414,7 +414,7 @@
         actions: 'القرارات والإجراءات', uncertainties: 'نقاط عدم اليقين', changes: 'ما الذي تغير', evidence: 'الأدلة الداعمة',
         evidenceCount: function(n) { return n + ' مصادر'; }, partial: 'توجد فجوات في الأدلة', validated: 'إحاطة مدعومة بالأدلة',
         observed: 'معلومة مرصودة', assessment: 'تقدير تحليلي', gap: 'يحتاج إلى تحقق', why: 'لماذا يهم', impact: 'الأثر على الأعمال', action: 'الإجراء المقترح',
-        confidence: 'درجة الثقة', total: 'الإجمالي', critical: 'حرج', fresh: 'جديد', escalated: 'تصاعد', deescalated: 'تراجع',
+        confidence: 'درجة الثقة', corroborated: 'متعدد المصادر', singleSource: 'مصدر مستقل واحد', unverified: 'تأكيد محدود', total: 'الإجمالي', critical: 'حرج', fresh: 'جديد', escalated: 'تصاعد', deescalated: 'تراجع',
         noDevelopments: 'لا توجد تطورات ذات أولوية.', noItems: 'لا توجد عناصر متاحة.', noChanges: 'لم تتجاوز أي تغيرات جوهرية الحدود المحددة.',
         noEvidence: 'لا تتوفر أدلة مستشهد بها.', coverage: 'تتطلب بعض الادعاءات مزيدا من التحقق. راجع المصادر الداعمة قبل اتخاذ القرار.',
         unknownTime: 'وقت الرصد غير معروف', stale: 'قديم', loadError: 'تعذر تحميل الإحاطة التنفيذية.', waiting: 'يجري إعداد الإحاطة التنفيذية.'
@@ -470,6 +470,12 @@
       return cleanText(value || 'unknown');
     }
 
+    function corroborationLabel(value) {
+      var copy = COPY[lang];
+      var level = value && value.level;
+      return level === 'corroborated' ? copy.corroborated : level === 'single-source' ? copy.singleSource : copy.unverified;
+    }
+
     function setLang(next) {
       lang = next === 'ar' ? 'ar' : 'en';
       document.documentElement.lang = lang;
@@ -509,7 +515,7 @@
       document.getElementById('developments').innerHTML = developments.length ? developments.map(function(item) {
         var state = claimState([item.title, item.whyItMatters, item.businessImpact, item.action]);
         return '<article class="development-card">' +
-          '<div class="card-top"><span class="claim-state ' + state + '">' + esc(stateLabel(state)) + '</span><span class="confidence">' + esc(copy.confidence) + ' ' + esc(confidenceLabel(item.confidence)) + '</span></div>' +
+          '<div class="card-top"><span class="claim-state ' + state + '">' + esc(stateLabel(state)) + '</span><span class="confidence">' + esc(copy.confidence) + ' ' + esc(confidenceLabel(item.confidence)) + ' · ' + esc(corroborationLabel(item.corroboration)) + '</span></div>' +
           '<h3>' + esc(cleanText(item.title)) + '</h3>' +
           '<div class="detail"><span class="detail-label">' + esc(copy.why) + '</span><p>' + esc(cleanText(item.whyItMatters)) + '</p></div>' +
           '<div class="detail"><span class="detail-label">' + esc(copy.impact) + '</span><p>' + esc(cleanText(item.businessImpact)) + '</p></div>' +

@@ -4,6 +4,23 @@
 
 Moraqeb is a promising OSINT decision-support prototype with strong technical provenance, but it is not yet safe to treat as autonomous, verified intelligence. The Executive view is the best product surface. The long-form Blog and dashboard still need product and evidence-quality work.
 
+## Evidence-v13 hardening update — 2026-08-03
+
+The active branch now includes a major evidence-v13 hardening increment. The score below remains the published evidence-v10 baseline; it has **not** been raised to 9.5 without a fresh independent release audit.
+
+Verified in the current source tree:
+
+- Complete Node suite: **135 passed, 0 failed, 1 skipped**.
+- Blog, Posts, and Executive latest-promotion gates require complete bilingual citation metadata, exact resolved evidence IDs, immutable snapshot lineage, and no unsupported claims.
+- OpenSky uses one global state-vector request followed by deterministic regionalization.
+- NASA FIRMS uses product-aware exact deduplication, rolling 24-hour windows, partial-coverage semantics, and set-based deltas that do not treat window expiry as de-escalation.
+- Citation parsing protects abbreviations, binds trailing citations correctly, separates semicolon claims, catches short/table facts, and rejects factual laundering through inference tags.
+- Source-family corroboration excludes social-only, stale, contextual, and syndicated duplicates from high-confidence treatment.
+- Blog and Posts now use concise reader paths, collapsed audit details, validated archives, localized accessibility controls, and progressive Posts filtering/loading.
+- Executive, Blog, and Posts use **Segoe UI** for Arabic and no longer download Noto Sans Arabic.
+
+Runtime verification before this update produced fresh validated evidence-v13 Post and Blog artifacts. Executive evidence-v13 generation previously failed closed and retained the last trusted artifact; the current source adds deterministic fresh-evidence selection for the next Executive generation. A new independent artifact/claim/desktop-mobile audit is still required before revising the score.
+
 | Area | Score | Verdict |
 |---|---:|---|
 | Accuracy | 7.0/10 | Selected primary-source facts check out; degraded feeds, low-confidence social reporting, partial citation coverage, and overlapping FIRMS regions limit certainty. |
